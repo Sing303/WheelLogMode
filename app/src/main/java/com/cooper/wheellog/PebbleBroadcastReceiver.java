@@ -30,16 +30,20 @@ import static com.cooper.wheellog.utils.Constants.PEBBLE_KEY_LAUNCH_APP;
 import static com.cooper.wheellog.utils.Constants.PEBBLE_KEY_PLAY_HORN;
 import static com.cooper.wheellog.utils.Constants.PEBBLE_KEY_READY;
 
-public class PebbleBroadcastReceiver extends BroadcastReceiver {
-
-
+public class PebbleBroadcastReceiver extends BroadcastReceiver
+{
     @Override
-    public void onReceive(Context context, Intent intent) {
-        if (intent.getAction().equals(Constants.INTENT_APP_RECEIVE)) {
+    public void onReceive(Context context, Intent intent)
+    {
+        if (intent.getAction().equals(Constants.INTENT_APP_RECEIVE))
+        {
             final UUID receivedUuid = (UUID) intent.getSerializableExtra(Constants.APP_UUID);
+
             // Pebble-enabled apps are expected to be good citizens and only inspect broadcasts containing their UUID
             if (!PEBBLE_APP_UUID.equals(receivedUuid))
+            {
                 return;
+            }
 
             final int transactionId = intent.getIntExtra(Constants.TRANSACTION_ID, -1);
             PebbleKit.sendAckToPebble(context, transactionId);
@@ -47,54 +51,62 @@ public class PebbleBroadcastReceiver extends BroadcastReceiver {
             final String jsonData = intent.getStringExtra(Constants.MSG_DATA);
             final PebbleDictionary data;
 
-            try {
+            try
+            {
                 data = PebbleDictionary.fromJson(jsonData);
-            } catch (JSONException ex) {
+            }
+            catch (JSONException ex)
+            {
                 return;
             }
 
-//            Toast.makeText(context,jsonData, Toast.LENGTH_SHORT).show();
-
-            if (data.contains(PEBBLE_KEY_LAUNCH_APP) && !PebbleService.isInstanceCreated()) {
+            if (data.contains(PEBBLE_KEY_LAUNCH_APP) && !PebbleService.isInstanceCreated())
+            {
                 Intent mainActivityIntent = new Intent(context.getApplicationContext(), MainActivity.class);
                 mainActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 mainActivityIntent.putExtra(INTENT_EXTRA_LAUNCHED_FROM_PEBBLE, true);
                 context.getApplicationContext().startActivity(mainActivityIntent);
                 Intent pebbleServiceIntent = new Intent(context.getApplicationContext(), PebbleService.class);
                 context.startService(pebbleServiceIntent);
-            } else if (data.contains(PEBBLE_KEY_READY)) {
+            }
+            else if (data.contains(PEBBLE_KEY_READY))
+            {
                 int watch_app_version = data.getInteger(PEBBLE_KEY_READY).intValue();
                 if (watch_app_version < com.cooper.wheellog.utils.Constants.PEBBLE_APP_VERSION)
+                {
                     sendPebbleAlert(context, "A newer version of the app is available. Please upgrade to make sure the app works as expected.");
+                }
                 Intent pebbleReadyIntent = new Intent(ACTION_PEBBLE_APP_READY);
                 pebbleReadyIntent.putExtra(INTENT_EXTRA_PEBBLE_APP_VERSION, watch_app_version);
                 context.sendBroadcast(pebbleReadyIntent);
-            } else if (data.contains(PEBBLE_KEY_DISPLAYED_SCREEN)) {
+            }
+            else if (data.contains(PEBBLE_KEY_DISPLAYED_SCREEN))
+            {
                 int displayed_screen = data.getInteger(PEBBLE_KEY_DISPLAYED_SCREEN).intValue();
                 Intent pebbleScreenIntent = new Intent(ACTION_PEBBLE_APP_SCREEN);
                 pebbleScreenIntent.putExtra(INTENT_EXTRA_PEBBLE_DISPLAYED_SCREEN, displayed_screen);
                 context.sendBroadcast(pebbleScreenIntent);
-            } else if (data.contains(PEBBLE_KEY_PLAY_HORN)) {
+            }
+            else if (data.contains(PEBBLE_KEY_PLAY_HORN))
+            {
                 int horn_mode = SettingsUtil.getHornMode(context);
-                if (horn_mode == 1) {
+                if (horn_mode == 1)
+                {
                     final Intent hornIntent = new Intent(ACTION_REQUEST_KINGSONG_HORN);
                     context.sendBroadcast(hornIntent);
-                } else if (horn_mode == 2) {
+                }
+                else if (horn_mode == 2)
+                {
                     MediaPlayer mp = MediaPlayer.create(context, R.raw.bicycle_bell);
                     mp.start();
-                    mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                        @Override
-                        public void onCompletion(MediaPlayer mp) {
-                            mp.release();
-                        }
-                    });
+                    mp.setOnCompletionListener(mp1 -> mp1.release());
                 }
             }
         }
     }
 
-
-    private void sendPebbleAlert(Context context, final String text) {
+    private void sendPebbleAlert(Context context, final String text)
+    {
         // Push a notification
         final Intent i = new Intent("com.getpebble.action.SEND_NOTIFICATION");
         final Map<String, String> data = new HashMap<>();
@@ -107,5 +119,4 @@ public class PebbleBroadcastReceiver extends BroadcastReceiver {
         i.putExtra("notificationData", notificationData);
         context.sendBroadcast(i);
     }
-
 }

@@ -5,7 +5,8 @@ package com.cooper.wheellog.presentation.preferences;
  *
  * @author Yakushev Vladimir <ru.phoenix@gmail.com>
  */
-public interface OnValueChangeListener {
+public interface OnValueChangeListener
+{
 
     /**
      * Оповещение об изменении значения

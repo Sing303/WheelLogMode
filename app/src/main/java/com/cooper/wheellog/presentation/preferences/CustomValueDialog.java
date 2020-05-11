@@ -19,8 +19,8 @@ import com.cooper.wheellog.R;
  *
  * @author Yakushev Vladimir <ru.phoenix@gmail.com>
  */
-class CustomValueDialog {
-
+class CustomValueDialog
+{
     private final String TAG = getClass().getSimpleName();
 
     private Dialog mDialog;
@@ -37,7 +37,8 @@ class CustomValueDialog {
      * @param maxValue     максимально допустимое значение
      * @param currentValue текущее значение для подсказки
      */
-    CustomValueDialog(Context context, int minValue, int maxValue, int currentValue) {
+    CustomValueDialog(Context context, int minValue, int maxValue, int currentValue)
+    {
         mMinValue = minValue;
         mMaxValue = maxValue;
         mCurrentValue = currentValue;
@@ -67,7 +68,8 @@ class CustomValueDialog {
      * @param listener подписчик на изменение значения в диалоге
      * @return ссылку на диалог для его последующей настройки
      */
-    CustomValueDialog setOnValueChangeListener(OnValueChangeListener listener) {
+    CustomValueDialog setOnValueChangeListener(OnValueChangeListener listener)
+    {
         mOnValueChangeListener = listener;
         return this;
     }
@@ -75,37 +77,47 @@ class CustomValueDialog {
     /**
      * Запуск диалога
      */
-    void show() {
+    void show()
+    {
         mDialog.show();
     }
 
-    private void tryApply() {
+    private void tryApply()
+    {
         int value;
 
-        try {
+        try
+        {
             value = Integer.parseInt(mCustomValueView.getText().toString());
-            if (value > mMaxValue) {
+            if (value > mMaxValue)
+            {
                 Log.e(TAG, "wrong input( > than required): " + mCustomValueView.getText().toString());
                 notifyWrongInput();
                 return;
-            } else if (value < mMinValue) {
+            }
+            else if (value < mMinValue)
+            {
                 Log.e(TAG, "wrong input( < then required): " + mCustomValueView.getText().toString());
                 notifyWrongInput();
                 return;
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Log.e(TAG, "wrong input(non-integer): " + mCustomValueView.getText().toString());
             notifyWrongInput();
             return;
         }
 
-        if (mOnValueChangeListener != null) {
+        if (mOnValueChangeListener != null)
+        {
             mOnValueChangeListener.onChanged(value);
             mDialog.dismiss();
         }
     }
 
-    private void notifyWrongInput() {
+    private void notifyWrongInput()
+    {
         mCustomValueView.setText("");
         mCustomValueView.setHint(String.valueOf(mCurrentValue));
     }

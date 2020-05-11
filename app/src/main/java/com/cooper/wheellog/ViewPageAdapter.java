@@ -6,18 +6,20 @@ import android.view.ViewGroup;
 
 import androidx.viewpager.widget.PagerAdapter;
 
-class ViewPageAdapter extends PagerAdapter {
-
+class ViewPageAdapter extends PagerAdapter
+{
     Activity mActivity;
 
-    public ViewPageAdapter(Activity activity){
+    public ViewPageAdapter(Activity activity)
+    {
         mActivity = activity;
     }
 
-    public Object instantiateItem(ViewGroup collection, int position) {
-
+    public Object instantiateItem(ViewGroup collection, int position)
+    {
         int resId = 0;
-        switch (position) {
+        switch (position)
+        {
             case 0:
                 resId = R.id.page_one;
                 break;
@@ -28,16 +30,19 @@ class ViewPageAdapter extends PagerAdapter {
                 resId = R.id.page_three;
                 break;
         }
+
         return mActivity.findViewById(resId);
     }
 
     @Override
-    public int getCount() {
+    public int getCount()
+    {
         return 3;
     }
 
     @Override
-    public boolean isViewFromObject(View arg0, Object arg1) {
+    public boolean isViewFromObject(View arg0, Object arg1)
+    {
         return arg0 == (arg1);
     }
 }

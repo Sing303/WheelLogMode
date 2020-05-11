@@ -39,45 +39,177 @@ import java.util.Locale;
 
 import timber.log.Timber;
 
-public class GoogleDriveService extends Service implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
-    public GoogleDriveService() {
-    }
+public class GoogleDriveService extends Service implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener
+{
+    File file;
+    int notification_id = 0;
+    final private ResultCallback<DriveFolder.DriveFileResult> fileCreatedCallback = result ->
+    {
+        if (!result.getStatus().isSuccess())
+        {
+            Timber.i("Error while trying to create the file");
+            exitUploadFailed();
+            return;
+        }
+
+        Timber.i("Created a file with content: %s", result.getDriveFile().getDriveId());
+        updateNotification("Upload Complete", true);
+        stopForeground(true);
+        stopSelf();
+    };
 
     private GoogleApiClient mGoogleApiClient;
     private DriveId folderDriveId;
+
+    ResultCallback<DriveFolder.DriveFolderResult> createLogFolderInDriveRootCallback = new
+            ResultCallback<DriveFolder.DriveFolderResult>()
+            {
+                @Override
+                public void onResult(@NonNull DriveFolder.DriveFolderResult result)
+                {
+                    if (!result.getStatus().isSuccess())
+                    {
+                        Timber.i("Error while trying to create the folder");
+                        exitUploadFailed();
+                        return;
+                    }
+
+                    Timber.i("Created a folder: %s", result.getDriveFolder().getDriveId());
+                    folderDriveId = result.getDriveFolder().getDriveId();
+                    createLogInFolder();
+                }
+            };
+
+    ResultCallback<DriveApi.MetadataBufferResult> listDriveRootFolderContentsCallback = new
+            ResultCallback<DriveApi.MetadataBufferResult>()
+            {
+                @Override
+                public void onResult(@NonNull DriveApi.MetadataBufferResult result)
+                {
+                    if (!result.getStatus().isSuccess())
+                    {
+                        Timber.i("Problem while retrieving files");
+                        exitUploadFailed();
+                        return;
+                    }
+
+                    for (Metadata m : result.getMetadataBuffer())
+                    {
+                        if (m.isFolder() &&
+                                !m.isTrashed() &&
+                                Constants.LOG_FOLDER_NAME.equals(m.getTitle()))
+                        {
+                            folderDriveId = m.getDriveId();
+                            break;
+                        }
+                    }
+
+                    result.release();
+                    Timber.i("Successfully listed files.");
+
+                    if (folderDriveId == null)
+                    {
+                        Timber.i("Folder DriveId is null");
+                        createLogFolderInDriveRoot();
+                    }
+                    else
+                    {
+                        Timber.i("Folder DriveId is not null");
+                        createLogInFolder();
+                    }
+                }
+            };
+
+    final private ResultCallback<DriveApi.DriveContentsResult> createLogInFolderCallback = new
+            ResultCallback<DriveApi.DriveContentsResult>()
+            {
+                @Override
+                public void onResult(@NonNull DriveApi.DriveContentsResult result)
+                {
+                    if (!result.getStatus().isSuccess())
+                    {
+                        Timber.i("Error while trying to create new file contents");
+                        exitUploadFailed();
+                        return;
+                    }
+
+                    final DriveContents driveContents = result.getDriveContents();
+                    updateNotification("Uploading file " + file.getName());
+
+                    // Write content to DriveContents
+                    OutputStream outputStream = driveContents.getOutputStream();
+                    Writer writer = new OutputStreamWriter(outputStream);
+
+                    try
+                    {
+                        BufferedReader br = new BufferedReader(new FileReader(file));
+                        String line;
+
+                        while ((line = br.readLine()) != null)
+                            writer.append(line).append('\n');
+
+                        br.close();
+                        writer.close();
+                    }
+                    catch (IOException e)
+                    {
+                        Timber.e(e.getMessage());
+                    }
+
+                    MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
+                            .setTitle(file.getName())
+                            .setMimeType("text/plain")
+                            .setStarred(false).build();
+
+                    // create a file in "WheelLog Logs" folder
+                    folderDriveId.asDriveFolder()
+                            .createFile(getGoogleApiClient(), changeSet, driveContents)
+                            .setResultCallback(fileCreatedCallback);
+                }
+            };
+
     private Notification mNotification;
-    File file;
-    int notification_id = 0;
+
+    public GoogleDriveService()
+    {
+    }
 
     @Override
-    public IBinder onBind(Intent intent) {
+    public IBinder onBind(Intent intent)
+    {
         return null;
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(Intent intent, int flags, int startId)
+    {
         updateNotification("Log upload started");
-        if (intent.hasExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION)) {
+        if (intent.hasExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION))
+        {
             String filePath = intent.getStringExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION);
             file = new File(filePath);
             if (file.exists())
+            {
                 getGoogleApiClient().connect();
+            }
             else
+            {
                 exitUploadFailed();
-        } else
+            }
+        }
+        else
+        {
             exitUploadFailed();
-        /*mNotification = new android.support.v4.app.NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID_NOTIFICATION)
-                .setSmallIcon(R.drawable.ic_stat_wheel)
-                .setPriority(android.support.v4.app.NotificationCompat.PRIORITY_MIN)
-                .build();
-        */
+        }
+
         startForeground(Constants.MAIN_NOTIFICATION_ID, NotificationUtil.getNotification());
-        //startForeground(Constants.NOTIFICATION_ID_DRIVE, mNotification);
         return START_STICKY;
     }
 
-    private GoogleApiClient getGoogleApiClient() {
-        if (mGoogleApiClient == null) {
+    private GoogleApiClient getGoogleApiClient()
+    {
+        if (mGoogleApiClient == null)
+        {
             mGoogleApiClient = new GoogleApiClient.Builder(this)
                     .addApi(Drive.API)
                     .addScope(Drive.SCOPE_FILE)
@@ -85,10 +217,12 @@ public class GoogleDriveService extends Service implements GoogleApiClient.Conne
                     .addOnConnectionFailedListener(this)
                     .build();
         }
+
         return mGoogleApiClient;
     }
 
-    private Notification buildNotification(String text, boolean complete) {
+    private Notification buildNotification(String text, boolean complete)
+    {
         int icon = complete ? R.drawable.ic_stat_cloud_done : R.drawable.ic_stat_cloud_upload;
         String contentText = file == null ? "" : file.getName();
         Intent notificationIntent = new Intent(this, MainActivity.class);
@@ -101,163 +235,76 @@ public class GoogleDriveService extends Service implements GoogleApiClient.Conne
                 .build();
     }
 
-    private void updateNotification(String text) {
+    private void updateNotification(String text)
+    {
         updateNotification(text, false);
     }
 
-    private void updateNotification(String text, boolean complete) {
+    private void updateNotification(String text, boolean complete)
+    {
         Notification notification = buildNotification(text, complete);
         if (notification_id == 0)
+        {
             notification_id = createID();
+        }
 
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotificationManager.notify(notification_id, notification);
     }
 
     @Override
-    public void onConnected(@Nullable Bundle bundle) {
+    public void onConnected(@Nullable Bundle bundle)
+    {
         listDriveRootFolderContents();
     }
 
-    private void listDriveRootFolderContents() {
+    private void listDriveRootFolderContents()
+    {
         Drive.DriveApi.getRootFolder(getGoogleApiClient()).listChildren(getGoogleApiClient()).setResultCallback(listDriveRootFolderContentsCallback);
     }
 
-    private void createLogFolderInDriveRoot() {
+    private void createLogFolderInDriveRoot()
+    {
         MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
                 .setTitle(Constants.LOG_FOLDER_NAME).build();
         Drive.DriveApi.getRootFolder(getGoogleApiClient()).createFolder(
                 getGoogleApiClient(), changeSet).setResultCallback(createLogFolderInDriveRootCallback);
     }
 
-    private void createLogInFolder() {
+    private void createLogInFolder()
+    {
         // create new contents resource
         if (folderDriveId == null)
+        {
             exitUploadFailed();
+        }
         else
+        {
             Drive.DriveApi.newDriveContents(getGoogleApiClient())
                     .setResultCallback(createLogInFolderCallback);
+        }
     }
 
-    ResultCallback<DriveApi.MetadataBufferResult> listDriveRootFolderContentsCallback = new
-            ResultCallback<DriveApi.MetadataBufferResult>() {
-                @Override
-                public void onResult(@NonNull DriveApi.MetadataBufferResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Timber.i("Problem while retrieving files");
-                        exitUploadFailed();
-                        return;
-                    }
-                    for (Metadata m: result.getMetadataBuffer()) {
-                        if (m.isFolder() &&
-                                !m.isTrashed() &&
-                                Constants.LOG_FOLDER_NAME.equals(m.getTitle())) {
-                            folderDriveId = m.getDriveId();
-                            break;
-                        }
-                    }
-                    result.release();
-
-                    Timber.i("Successfully listed files.");
-
-                    if (folderDriveId == null) {
-                        Timber.i("Folder DriveId is null");
-                        createLogFolderInDriveRoot();
-                    } else {
-                        Timber.i("Folder DriveId is not null");
-                        createLogInFolder();
-                    }
-                }
-            };
-
-    ResultCallback<DriveFolder.DriveFolderResult> createLogFolderInDriveRootCallback = new
-            ResultCallback<DriveFolder.DriveFolderResult>() {
-                @Override
-                public void onResult(@NonNull DriveFolder.DriveFolderResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Timber.i("Error while trying to create the folder");
-                        exitUploadFailed();
-                        return;
-                    }
-                    Timber.i("Created a folder: %s", result.getDriveFolder().getDriveId());
-                    folderDriveId = result.getDriveFolder().getDriveId();
-                    createLogInFolder();
-                }
-            };
-
-    final private ResultCallback<DriveApi.DriveContentsResult> createLogInFolderCallback = new
-            ResultCallback<DriveApi.DriveContentsResult>() {
-                @Override
-                public void onResult(@NonNull DriveApi.DriveContentsResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Timber.i("Error while trying to create new file contents");
-                        exitUploadFailed();
-                        return;
-                    }
-                    final DriveContents driveContents = result.getDriveContents();
-
-                    updateNotification("Uploading file " + file.getName());
-                    // write content to DriveContents
-                    OutputStream outputStream = driveContents.getOutputStream();
-                    Writer writer = new OutputStreamWriter(outputStream);
-
-                    try {
-                        BufferedReader br = new BufferedReader(new FileReader(file));
-                        String line;
-
-                        while ((line = br.readLine()) != null)
-                            writer.append(line).append('\n');
-
-                        br.close();
-                        writer.close();
-                    } catch (IOException e) {
-                        Timber.e(e.getMessage());
-                    }
-
-                    MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                            .setTitle(file.getName())
-                            .setMimeType("text/plain")
-                            .setStarred(false).build();
-
-                    // create a file in "WheelLog Logs" folder
-                    folderDriveId.asDriveFolder()
-                        .createFile(getGoogleApiClient(), changeSet, driveContents)
-                                    .setResultCallback(fileCreatedCallback);
-                }
-            };
-
-    final private ResultCallback<DriveFolder.DriveFileResult> fileCreatedCallback = new
-            ResultCallback<DriveFolder.DriveFileResult>() {
-                @Override
-                public void onResult(@NonNull DriveFolder.DriveFileResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        Timber.i("Error while trying to create the file");
-                        exitUploadFailed();
-                        return;
-                    }
-                    Timber.i("Created a file with content: %s", result.getDriveFile().getDriveId());
-                    updateNotification("Upload Complete", true);
-                    stopForeground(true);
-                    stopSelf();
-                }
-            };
-
-    private void exitUploadFailed() {
+    private void exitUploadFailed()
+    {
         updateNotification("Upload failed");
         stopForeground(true);
         stopSelf();
     }
 
     @Override
-    public void onConnectionSuspended(int i) {
+    public void onConnectionSuspended(int i)
+    {
     }
 
     @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult)
+    {
         exitUploadFailed();
     }
 
-    public int createID(){
-        return Integer.parseInt(new SimpleDateFormat("ddHHmmss",  Locale.US).format(new Date()));
+    public int createID()
+    {
+        return Integer.parseInt(new SimpleDateFormat("ddHHmmss", Locale.US).format(new Date()));
     }
 }

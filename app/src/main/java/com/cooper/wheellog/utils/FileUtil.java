@@ -10,28 +10,31 @@ import java.io.PrintWriter;
 
 import timber.log.Timber;
 
-public class FileUtil {
-
-    public static File getFile(String filename) {
+public class FileUtil
+{
+    public static File getFile(String filename)
+    {
         // Get the directory for the user's public pictures directory.
-        File dir = new File(Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS), Constants.LOG_FOLDER_NAME);
-
+        File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), Constants.LOG_FOLDER_NAME);
         if (!dir.mkdirs())
+        {
             Timber.i("Directory not created");
+        }
 
         return new File(dir, filename);
     }
 
-    public static boolean writeLine(String filename, String line) {
+    public static boolean writeLine(String filename, String line)
+    {
         File file = getFile(filename);
-
-        if (file == null) {
+        if (file == null)
+        {
             Timber.e("Write failed. File is null");
             return false;
         }
 
-        try {
+        try
+        {
             FileOutputStream f = new FileOutputStream(file, true);
             PrintWriter pw = new PrintWriter(f);
 
@@ -40,15 +43,20 @@ public class FileUtil {
             pw.flush();
             pw.close();
             f.close();
-        } catch (FileNotFoundException e) {
+        }
+        catch (FileNotFoundException e)
+        {
             Timber.e("File not found.");
             e.printStackTrace();
             return false;
-        } catch (IOException e) {
+        }
+        catch (IOException e)
+        {
             Timber.e("IOException");
             e.printStackTrace();
             return false;
         }
+
         return true;
     }
 }

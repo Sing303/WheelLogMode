@@ -16,7 +16,6 @@ import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.graphics.drawable.AnimationDrawable;
 import android.media.AudioManager;
-import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -72,19 +71,18 @@ import timber.log.Timber;
 import static com.cooper.wheellog.utils.MathsUtil.kmToMiles;
 
 @RuntimePermissions
-public class MainActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
-
-    @Override
-    protected void attachBaseContext(Context base) {
-        super.attachBaseContext(LocaleManager.setLocale(base));
-    }
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener
+{
+    protected static final int RESULT_DEVICE_SCAN_REQUEST = 20;
+    protected static final int RESULT_REQUEST_ENABLE_BT = 30;
+    protected static final int REQUEST_CODE_RESOLUTION = 40;
+    public static AudioManager audioManager = null;
 
     Menu mMenu;
     MenuItem miSearch;
     MenuItem miWheel;
     MenuItem miWatch;
     MenuItem miLogging;
-
     TextView tvSpeed;
     TextView tvTemperature;
     TextView tvTemperature2;
@@ -113,53 +111,60 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     TextView tvRidingTime;
     TextView tvMode;
     TextView tvTimeCharge;
-
     LineChart chart1;
-
     WheelView wheelView;
-
-    @Override
-    public void onUserLeaveHint() {
-        if (SettingsUtil.isUsePipMode(this)) {
-
-            //Rational rational = new Rational(90,160);
-
-            //PictureInPictureParams mParams =
-            //      new PictureInPictureParams.Builder()
-            //              .setAspectRatio(rational)
-            //              .build();
-
-            //enterPictureInPictureMode();
-            //enterPictureInPictureMode(mParams);
-
-            //      if (true){
-
-        }
-        //super.onR;
-    }
-
+    int viewPagerPage = 0;
     private BluetoothLeService mBluetoothLeService;
     private BluetoothAdapter mBluetoothAdapter;
     private String mDeviceAddress;
     private int mConnectionState = BluetoothLeService.STATE_DISCONNECTED;
     private boolean doubleBackToExitPressedOnce = false;
     private Snackbar snackbar;
-    int viewPagerPage = 0;
     private ArrayList<String> xAxis_labels = new ArrayList<>();
-    private boolean use_mph = false;
-    private GoogleApiClient mGoogleApiClient;
-    private DrawerLayout mDrawer;
-
-    protected static final int RESULT_DEVICE_SCAN_REQUEST = 20;
-    protected static final int RESULT_REQUEST_ENABLE_BT = 30;
-    protected static final int REQUEST_CODE_RESOLUTION = 40;
-
-    private final ServiceConnection mServiceConnection = new ServiceConnection() {
-
+    IAxisValueFormatter chartAxisValueFormatter = new IAxisValueFormatter()
+    {
         @Override
-        public void onServiceConnected(ComponentName componentName, IBinder service) {
+        public String getFormattedValue(float value, AxisBase axis)
+        {
+            if (value < xAxis_labels.size())
+            {
+                return xAxis_labels.get((int) value);
+            }
+            else
+            {
+                return "";
+            }
+        }
+
+        // we don't draw numbers, so no decimal digits needed
+        @Override
+        public int getDecimalDigits()
+        {
+            return 0;
+        }
+    };
+
+    private boolean use_mph = false;
+    ViewPager.SimpleOnPageChangeListener pageChangeListener = new ViewPager.SimpleOnPageChangeListener()
+    {
+        @Override
+        public void onPageSelected(int position)
+        {
+            super.onPageSelected(position);
+            viewPagerPage = position;
+            updateScreen(true);
+        }
+    };
+
+    private GoogleApiClient mGoogleApiClient;
+    private final ServiceConnection mServiceConnection = new ServiceConnection()
+    {
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service)
+        {
             mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
-            if (!mBluetoothLeService.initialize()) {
+            if (!mBluetoothLeService.initialize())
+            {
                 Timber.e(getResources().getString(R.string.error_bluetooth_not_initialised));
                 Toast.makeText(MainActivity.this, R.string.error_bluetooth_not_initialised, Toast.LENGTH_SHORT).show();
                 finish();
@@ -167,37 +172,47 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
             loadPreferences();
             if (mBluetoothLeService.getConnectionState() == BluetoothLeService.STATE_DISCONNECTED &&
-                    mDeviceAddress != null && !mDeviceAddress.isEmpty()) {
+                    mDeviceAddress != null && !mDeviceAddress.isEmpty())
+            {
                 mBluetoothLeService.setDeviceAddress(mDeviceAddress);
                 toggleConnectToWheel();
             }
         }
 
         @Override
-        public void onServiceDisconnected(ComponentName componentName) {
+        public void onServiceDisconnected(ComponentName componentName)
+        {
             mBluetoothLeService = null;
             finish();
         }
     };
 
-    private final BroadcastReceiver mBluetoothUpdateReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mBluetoothUpdateReceiver = new BroadcastReceiver()
+    {
         @Override
-        public void onReceive(Context context, Intent intent) {
-
-            switch (intent.getAction()) {
+        public void onReceive(Context context, Intent intent)
+        {
+            switch (intent.getAction())
+            {
                 case Constants.ACTION_BLUETOOTH_CONNECTION_STATE:
                     int connectionState = intent.getIntExtra(Constants.INTENT_EXTRA_CONNECTION_STATE, BluetoothLeService.STATE_DISCONNECTED);
                     Timber.i("Bluetooth state = %d", connectionState);
                     setConnectionState(connectionState);
                     break;
                 case Constants.ACTION_WHEEL_DATA_AVAILABLE:
-                    if (WheelData.getInstance().getWheelType() == WHEEL_TYPE.KINGSONG) {
+                    if (WheelData.getInstance().getWheelType() == WHEEL_TYPE.KINGSONG)
+                    {
                         if (WheelData.getInstance().getName().isEmpty())
+                        {
                             sendBroadcast(new Intent(Constants.ACTION_REQUEST_KINGSONG_NAME_DATA));
+                        }
                         else if (WheelData.getInstance().getSerial().isEmpty())
+                        {
                             sendBroadcast(new Intent(Constants.ACTION_REQUEST_KINGSONG_SERIAL_DATA));
+                        }
                     }
-                    if (intent.hasExtra(Constants.INTENT_EXTRA_WHEEL_SETTINGS)) {
+                    if (intent.hasExtra(Constants.INTENT_EXTRA_WHEEL_SETTINGS))
+                    {
                         setWheelPreferences();
                     }
                     updateScreen(intent.hasExtra(Constants.INTENT_EXTRA_GRAPH_UPDATE_AVILABLE));
@@ -205,17 +220,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 case Constants.ACTION_PEBBLE_SERVICE_TOGGLED:
                     setMenuIconStates();
                     break;
-                //case Constants.ACTION_WHEEL_SETTING_CHANGED:
-                //	if (intent.hasExtra(Constants.INTENT_EXTRA_WHEEL_REFRESH)) {
-                //		setWheelPreferences();
-                //	}
-                //	break;
                 case Constants.ACTION_LOGGING_SERVICE_TOGGLED:
                     boolean running = intent.getBooleanExtra(Constants.INTENT_EXTRA_IS_RUNNING, false);
-                    if (intent.hasExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION)) {
+                    if (intent.hasExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION))
+                    {
                         String filepath = intent.getStringExtra(Constants.INTENT_EXTRA_LOGGING_FILE_LOCATION);
                         if (running)
+                        {
                             showSnackBar(getResources().getString(R.string.started_logging, filepath), 5000);
+                        }
                     }
 
                     setMenuIconStates();
@@ -229,43 +242,65 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                     break;
 
                 case Constants.ACTION_WHEEL_TYPE_RECOGNIZED:
-                    //System.out.println("WheelRecognizedMain");
                     String wheel_type = intent.getStringExtra(Constants.INTENT_EXTRA_WHEEL_TYPE);
-                    //showSnackBar(getResources().getString(R.string.wheel_type_recognized, wheel_type), 5000);
-                    //((PreferencesFragment) getPreferencesFragment()).show_main_menu();
                     break;
                 case Constants.ACTION_ALARM_TRIGGERED:
                     int alarmType = ((ALARM_TYPE) intent.getSerializableExtra(Constants.INTENT_EXTRA_ALARM_TYPE)).getValue();
-                    if (alarmType < 4) {
+                    if (alarmType < 4)
+                    {
                         showSnackBar(getResources().getString(R.string.alarm_text_speed), 3000);
                     }
-                    if (alarmType == 4) {
+                    if (alarmType == 4)
+                    {
                         showSnackBar(getResources().getString(R.string.alarm_text_current), 3000);
                     }
-                    if (alarmType == 5) {
+                    if (alarmType == 5)
+                    {
                         showSnackBar(getResources().getString(R.string.alarm_text_temperature), 3000);
                     }
                     break;
             }
         }
     };
+    private DrawerLayout mDrawer;
 
+    @Override
+    protected void attachBaseContext(Context base)
+    {
+        super.attachBaseContext(LocaleManager.setLocale(base));
+    }
 
-    private void setConnectionState(int connectionState) {
+    @Override
+    public void onUserLeaveHint()
+    {
+        if (SettingsUtil.isUsePipMode(this))
+        {
 
-        switch (connectionState) {
+        }
+    }
+
+    private void setConnectionState(int connectionState)
+    {
+        switch (connectionState)
+        {
             case BluetoothLeService.STATE_CONNECTED:
                 configureDisplay(WheelData.getInstance().getWheelType());
                 if (mDeviceAddress != null && !mDeviceAddress.isEmpty())
+                {
                     SettingsUtil.setLastAddress(getApplicationContext(), mDeviceAddress);
+                }
                 hideSnackBar();
                 break;
             case BluetoothLeService.STATE_CONNECTING:
-                if (mConnectionState == BluetoothLeService.STATE_CONNECTING) {
+                if (mConnectionState == BluetoothLeService.STATE_CONNECTING)
+                {
                     showSnackBar(R.string.bluetooth_direct_connect_failed);
 
-                } else {
-                    if (mBluetoothLeService.getDisconnectTime() != null) {
+                }
+                else
+                {
+                    if (mBluetoothLeService.getDisconnectTime() != null)
+                    {
                         showSnackBar(
                                 getString(R.string.connection_lost_at,
                                         new SimpleDateFormat("HH:mm:ss", Locale.US).format(mBluetoothLeService.getDisconnectTime())),
@@ -276,11 +311,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             case BluetoothLeService.STATE_DISCONNECTED:
                 break;
         }
+
         mConnectionState = connectionState;
         setMenuIconStates();
     }
 
-    private void setWheelPreferences() {
+    private void setWheelPreferences()
+    {
         Timber.i("SetWheelPreferences");
         ((MainPreferencesFragment) getPreferencesFragment()).refreshWheelSettings(WheelData.getInstance().getWheelLight(),
                 WheelData.getInstance().getWheelLed(),
@@ -290,19 +327,26 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 WheelData.getInstance().getPedalsPosition());
     }
 
-    private void setMenuIconStates() {
+    private void setMenuIconStates()
+    {
         if (mMenu == null)
+        {
             return;
+        }
 
-        if (mDeviceAddress == null || mDeviceAddress.isEmpty()) {
+        if (mDeviceAddress == null || mDeviceAddress.isEmpty())
+        {
             miWheel.setEnabled(false);
             miWheel.getIcon().setAlpha(64);
-        } else {
+        }
+        else
+        {
             miWheel.setEnabled(true);
             miWheel.getIcon().setAlpha(255);
         }
 
-        switch (mConnectionState) {
+        switch (mConnectionState)
+        {
             case BluetoothLeService.STATE_CONNECTED:
                 miWheel.setIcon(R.drawable.ic_action_wheel_orange);
                 miWheel.setTitle(R.string.disconnect_from_wheel);
@@ -324,54 +368,62 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 break;
         }
 
-        if (PebbleService.isInstanceCreated()) {
+        if (PebbleService.isInstanceCreated())
+        {
             miWatch.setIcon(R.drawable.ic_action_watch_orange);
-        } else {
+        }
+        else
+        {
             miWatch.setIcon(R.drawable.ic_action_watch_white);
         }
 
-        if (LoggingService.isInstanceCreated()) {
+        if (LoggingService.isInstanceCreated())
+        {
             miLogging.setTitle(R.string.stop_data_service);
             miLogging.setIcon(R.drawable.ic_action_logging_orange);
-        } else {
+        }
+        else
+        {
             miLogging.setTitle(R.string.start_data_service);
             miLogging.setIcon(R.drawable.ic_action_logging_white);
         }
     }
 
-    private void configureDisplay(WHEEL_TYPE wheelType) {
-        TextView tvWaitText = (TextView) findViewById(R.id.tvWaitText);
-        TextView tvTitleSpeed = (TextView) findViewById(R.id.tvTitleSpeed);
-        TextView tvTitleMaxSpeed = (TextView) findViewById(R.id.tvTitleTopSpeed);
-        TextView tvTitleAverageSpeed = (TextView) findViewById(R.id.tvTitleAverageSpeed);
-        TextView tvTitleAverageRidingSpeed = (TextView) findViewById(R.id.tvTitleAverageRidingSpeed);
-        TextView tvTitleBattery = (TextView) findViewById(R.id.tvTitleBattery);
-        TextView tvTitleDistance = (TextView) findViewById(R.id.tvTitleDistance);
-        TextView tvTitleWheelDistance = (TextView) findViewById(R.id.tvTitleWheelDistance);
-        TextView tvTitleUserDistance = (TextView) findViewById(R.id.tvTitleUserDistance);
-        TextView tvTitleRideTime = (TextView) findViewById(R.id.tvTitleRideTime);
-        TextView tvTitleRidingTime = (TextView) findViewById(R.id.tvTitleRidingTime);
-        TextView tvTitleVoltage = (TextView) findViewById(R.id.tvTitleVoltage);
-        TextView tvTitleVoltageSag = (TextView) findViewById(R.id.tvTitleVoltageSag);
-        TextView tvTitleCurrent = (TextView) findViewById(R.id.tvTitleCurrent);
-        TextView tvTitlePower = (TextView) findViewById(R.id.tvTitlePower);
-        TextView tvTitleTemperature = (TextView) findViewById(R.id.tvTitleTemperature);
-        TextView tvTitleTemperature2 = (TextView) findViewById(R.id.tvTitleTemperature2);
-        TextView tvTitleAngle = (TextView) findViewById(R.id.tvTitleAngle);
-        TextView tvTitleRoll = (TextView) findViewById(R.id.tvTitleRoll);
-        TextView tvTitleFanStatus = (TextView) findViewById(R.id.tvTitleFanStatus);
-        TextView tvTitleMode = (TextView) findViewById(R.id.tvTitleMode);
-        TextView tvTitleTotalDistance = (TextView) findViewById(R.id.tvTitleTotalDistance);
-        TextView tvTitleName = (TextView) findViewById(R.id.tvTitleName);
-        TextView tvTitleModel = (TextView) findViewById(R.id.tvTitleModel);
-        TextView tvTitleVersion = (TextView) findViewById(R.id.tvTitleVersion);
-        TextView tvTitleSerial = (TextView) findViewById(R.id.tvTitleSerial);
-        TextView tvLeftKmTitle = (TextView) findViewById(R.id.tvLeftKmTitle);
-        TextView tvTimeChargeTitle = (TextView) findViewById(R.id.tvTimeChargeTitle);
-        TextView tvTimeCharge = (TextView) findViewById(R.id.tvTimeCharge);
-        TextView tvLastRestVoltageTitle = (TextView) findViewById(R.id.tvLastRestVoltageTitle);
+    private void configureDisplay(WHEEL_TYPE wheelType)
+    {
+        TextView tvWaitText = findViewById(R.id.tvWaitText);
+        TextView tvTitleSpeed = findViewById(R.id.tvTitleSpeed);
+        TextView tvTitleMaxSpeed = findViewById(R.id.tvTitleTopSpeed);
+        TextView tvTitleAverageSpeed = findViewById(R.id.tvTitleAverageSpeed);
+        TextView tvTitleAverageRidingSpeed = findViewById(R.id.tvTitleAverageRidingSpeed);
+        TextView tvTitleBattery = findViewById(R.id.tvTitleBattery);
+        TextView tvTitleDistance = findViewById(R.id.tvTitleDistance);
+        TextView tvTitleWheelDistance = findViewById(R.id.tvTitleWheelDistance);
+        TextView tvTitleUserDistance = findViewById(R.id.tvTitleUserDistance);
+        TextView tvTitleRideTime = findViewById(R.id.tvTitleRideTime);
+        TextView tvTitleRidingTime = findViewById(R.id.tvTitleRidingTime);
+        TextView tvTitleVoltage = findViewById(R.id.tvTitleVoltage);
+        TextView tvTitleVoltageSag = findViewById(R.id.tvTitleVoltageSag);
+        TextView tvTitleCurrent = findViewById(R.id.tvTitleCurrent);
+        TextView tvTitlePower = findViewById(R.id.tvTitlePower);
+        TextView tvTitleTemperature = findViewById(R.id.tvTitleTemperature);
+        TextView tvTitleTemperature2 = findViewById(R.id.tvTitleTemperature2);
+        TextView tvTitleAngle = findViewById(R.id.tvTitleAngle);
+        TextView tvTitleRoll = findViewById(R.id.tvTitleRoll);
+        TextView tvTitleFanStatus = findViewById(R.id.tvTitleFanStatus);
+        TextView tvTitleMode = findViewById(R.id.tvTitleMode);
+        TextView tvTitleTotalDistance = findViewById(R.id.tvTitleTotalDistance);
+        TextView tvTitleName = findViewById(R.id.tvTitleName);
+        TextView tvTitleModel = findViewById(R.id.tvTitleModel);
+        TextView tvTitleVersion = findViewById(R.id.tvTitleVersion);
+        TextView tvTitleSerial = findViewById(R.id.tvTitleSerial);
+        TextView tvLeftKmTitle = findViewById(R.id.tvLeftKmTitle);
+        TextView tvTimeChargeTitle = findViewById(R.id.tvTimeChargeTitle);
+        TextView tvTimeCharge = findViewById(R.id.tvTimeCharge);
+        TextView tvLastRestVoltageTitle = findViewById(R.id.tvLastRestVoltageTitle);
 
-        switch (wheelType) {
+        switch (wheelType)
+        {
             case KINGSONG:
                 tvWaitText.setVisibility(View.GONE);
                 tvTitleSpeed.setVisibility(View.VISIBLE);
@@ -507,7 +559,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 tvTitleSerial.setVisibility(View.VISIBLE);
                 tvSerial.setVisibility(View.VISIBLE);
                 break;
-
             case NINEBOT_Z:
                 tvWaitText.setVisibility(View.GONE);
                 tvTitleSpeed.setVisibility(View.VISIBLE);
@@ -658,9 +709,12 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         }
     }
 
-    private void updateScreen(boolean updateGraph) {
-        switch (viewPagerPage) {
-            case 0: // GUI View
+    private void updateScreen(boolean updateGraph)
+    {
+        switch (viewPagerPage)
+        {
+            // GUI View
+            case 0:
                 wheelView.setSafeLoadPercent(WheelData.getInstance().getSafeLoadPercent());
                 wheelView.setSpeed(WheelData.getInstance().getSpeed());
                 wheelView.setBattery(WheelData.getInstance().getBatteryLevel());
@@ -673,8 +727,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 wheelView.setCurrent(WheelData.getInstance().getPowerDouble());
                 wheelView.setAverageSpeed(WheelData.getInstance().getAverageRidingSpeedDouble());
                 break;
-            case 1: // Text View
-                if (use_mph) {
+            // Text View
+            case 1:
+                if (use_mph)
+                {
                     tvSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.mph), kmToMiles(WheelData.getInstance().getSpeedDouble())));
                     tvTopSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.mph), kmToMiles(WheelData.getInstance().getTopSpeedDouble())));
                     tvAverageSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.mph), kmToMiles(WheelData.getInstance().getAverageSpeedDouble())));
@@ -683,7 +739,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                     tvWheelDistance.setText(String.format(Locale.US, "%.2f " + getString(R.string.milli), kmToMiles(WheelData.getInstance().getWheelDistanceDouble())));
                     tvUserDistance.setText(String.format(Locale.US, "%.2f " + getString(R.string.milli), kmToMiles(WheelData.getInstance().getUserDistanceDouble())));
                     tvTotalDistance.setText(String.format(Locale.US, "%.2f " + getString(R.string.milli), kmToMiles(WheelData.getInstance().getTotalDistanceDouble())));
-                } else {
+                }
+                else
+                {
                     tvSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.kmh), WheelData.getInstance().getSpeedDouble()));
                     tvTopSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.kmh), WheelData.getInstance().getTopSpeedDouble()));
                     tvAverageSpeed.setText(String.format(Locale.US, "%.1f " + getString(R.string.kmh), WheelData.getInstance().getAverageSpeedDouble()));
@@ -715,16 +773,18 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 tvLastRestVoltage.setText(WheelData.getInstance().getLastRestBattery());
                 tvTimeCharge.setText(WheelData.getInstance().getChargeTime());
                 break;
-            case 2: // Graph  View
-                if (updateGraph) {
+            // Graph  View
+            case 2:
+                if (updateGraph)
+                {
                     xAxis_labels = WheelData.getInstance().getXAxis();
-
-                    if (xAxis_labels.size() > 0) {
-
+                    if (xAxis_labels.size() > 0)
+                    {
                         LineDataSet dataSetSpeed;
                         LineDataSet dataSetCurrent;
 
-                        if (chart1.getData() == null) {
+                        if (chart1.getData() == null)
+                        {
                             dataSetSpeed = new LineDataSet(null, getString(R.string.speed_axis));
                             dataSetCurrent = new LineDataSet(null, getString(R.string.current_axis));
                             dataSetSpeed.setLineWidth(2);
@@ -745,7 +805,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                             chart1.setData(chart1_lineData);
                             findViewById(R.id.leftAxisLabel).setVisibility(View.VISIBLE);
                             findViewById(R.id.rightAxisLabel).setVisibility(View.VISIBLE);
-                        } else {
+                        }
+                        else
+                        {
                             dataSetSpeed = (LineDataSet) chart1.getData().getDataSetByLabel(getString(R.string.speed_axis), true);
                             dataSetCurrent = (LineDataSet) chart1.getData().getDataSetByLabel(getString(R.string.current_axis), true);
                         }
@@ -756,24 +818,33 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                         ArrayList<Float> currentAxis = new ArrayList<>(WheelData.getInstance().getCurrentAxis());
                         ArrayList<Float> speedAxis = new ArrayList<>(WheelData.getInstance().getSpeedAxis());
 
-                        for (Float d : currentAxis) {
+                        for (Float d : currentAxis)
+                        {
                             float value = 0;
                             if (d != null)
+                            {
                                 value = d;
+                            }
 
                             dataSetCurrent.addEntry(new Entry(dataSetCurrent.getEntryCount(), value));
                         }
 
-                        for (Float d : speedAxis) {
+                        for (Float d : speedAxis)
+                        {
                             float value = 0;
-
                             if (d != null)
+                            {
                                 value = d;
+                            }
 
                             if (use_mph)
+                            {
                                 dataSetSpeed.addEntry(new Entry(dataSetSpeed.getEntryCount(), kmToMiles(value)));
+                            }
                             else
+                            {
                                 dataSetSpeed.addEntry(new Entry(dataSetSpeed.getEntryCount(), value));
+                            }
                         }
 
                         dataSetCurrent.notifyDataSetChanged();
@@ -788,15 +859,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(Configuration newConfig)
+    {
         super.onConfigurationChanged(newConfig);
         updateScreen(true);
     }
 
-    public static AudioManager audioManager = null;
-
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState)
+    {
         super.onCreate(savedInstanceState);
 
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -809,77 +880,81 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 .commit();
 
         ViewPageAdapter adapter = new ViewPageAdapter(this);
-        ViewPager pager = (ViewPager) findViewById(R.id.pager);
+        ViewPager pager = findViewById(R.id.pager);
         pager.setAdapter(adapter);
         pager.setOffscreenPageLimit(3);
 
-        LinePageIndicator titleIndicator = (LinePageIndicator) findViewById(R.id.indicator);
+        LinePageIndicator titleIndicator = findViewById(R.id.indicator);
         titleIndicator.setViewPager(pager);
         pager.addOnPageChangeListener(pageChangeListener);
 
         mDeviceAddress = SettingsUtil.getLastAddress(getApplicationContext());
-        final Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        final Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
-        tvSpeed = (TextView) findViewById(R.id.tvSpeed);
-        tvCurrent = (TextView) findViewById(R.id.tvCurrent);
-        tvPower = (TextView) findViewById(R.id.tvPower);
-        tvTemperature = (TextView) findViewById(R.id.tvTemperature);
-        tvTemperature2 = (TextView) findViewById(R.id.tvTemperature2);
-        tvAngle = (TextView) findViewById(R.id.tvAngle);
-        tvRoll = (TextView) findViewById(R.id.tvRoll);
-        tvVoltage = (TextView) findViewById(R.id.tvVoltage);
-        tvVoltageSag = (TextView) findViewById(R.id.tvVoltageSag);
-        tvBattery = (TextView) findViewById(R.id.tvBattery);
-        tvFanStatus = (TextView) findViewById(R.id.tvFanStatus);
-        tvTopSpeed = (TextView) findViewById(R.id.tvTopSpeed);
-        tvAverageSpeed = (TextView) findViewById(R.id.tvAverageSpeed);
-        tvAverageRidingSpeed = (TextView) findViewById(R.id.tvAverageRidingSpeed);
-        tvDistance = (TextView) findViewById(R.id.tvDistance);
-        tvWheelDistance = (TextView) findViewById(R.id.tvWheelDistance);
-        tvUserDistance = (TextView) findViewById(R.id.tvUserDistance);
-        tvTotalDistance = (TextView) findViewById(R.id.tvTotalDistance);
-        tvModel = (TextView) findViewById(R.id.tvModel);
-        tvName = (TextView) findViewById(R.id.tvName);
-        tvVersion = (TextView) findViewById(R.id.tvVersion);
-        tvSerial = (TextView) findViewById(R.id.tvSerial);
-        tvLeftKm = (TextView) findViewById(R.id.tvLeftKm);
-        tvTimeCharge = (TextView) findViewById(R.id.tvTimeCharge);
-        tvLastRestVoltage = (TextView) findViewById(R.id.tvLastRestVoltage);
-        tvRideTime = (TextView) findViewById(R.id.tvRideTime);
-        tvRidingTime = (TextView) findViewById(R.id.tvRidingTime);
-        tvMode = (TextView) findViewById(R.id.tvMode);
-        wheelView = (WheelView) findViewById(R.id.wheelView);
-        mDrawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-
-        mDrawer.addDrawerListener(new DrawerLayout.DrawerListener() {
+        tvSpeed = findViewById(R.id.tvSpeed);
+        tvCurrent = findViewById(R.id.tvCurrent);
+        tvPower = findViewById(R.id.tvPower);
+        tvTemperature = findViewById(R.id.tvTemperature);
+        tvTemperature2 = findViewById(R.id.tvTemperature2);
+        tvAngle = findViewById(R.id.tvAngle);
+        tvRoll = findViewById(R.id.tvRoll);
+        tvVoltage = findViewById(R.id.tvVoltage);
+        tvVoltageSag = findViewById(R.id.tvVoltageSag);
+        tvBattery = findViewById(R.id.tvBattery);
+        tvFanStatus = findViewById(R.id.tvFanStatus);
+        tvTopSpeed = findViewById(R.id.tvTopSpeed);
+        tvAverageSpeed = findViewById(R.id.tvAverageSpeed);
+        tvAverageRidingSpeed = findViewById(R.id.tvAverageRidingSpeed);
+        tvDistance = findViewById(R.id.tvDistance);
+        tvWheelDistance = findViewById(R.id.tvWheelDistance);
+        tvUserDistance = findViewById(R.id.tvUserDistance);
+        tvTotalDistance = findViewById(R.id.tvTotalDistance);
+        tvModel = findViewById(R.id.tvModel);
+        tvName = findViewById(R.id.tvName);
+        tvVersion = findViewById(R.id.tvVersion);
+        tvSerial = findViewById(R.id.tvSerial);
+        tvLeftKm = findViewById(R.id.tvLeftKm);
+        tvTimeCharge = findViewById(R.id.tvTimeCharge);
+        tvLastRestVoltage = findViewById(R.id.tvLastRestVoltage);
+        tvRideTime = findViewById(R.id.tvRideTime);
+        tvRidingTime = findViewById(R.id.tvRidingTime);
+        tvMode = findViewById(R.id.tvMode);
+        wheelView = findViewById(R.id.wheelView);
+        mDrawer = findViewById(R.id.drawer_layout);
+        mDrawer.addDrawerListener(new DrawerLayout.DrawerListener()
+        {
             @Override
-            public void onDrawerSlide(View drawerView, float slideOffset) {
+            public void onDrawerSlide(View drawerView, float slideOffset)
+            {
             }
 
             @Override
-            public void onDrawerOpened(View drawerView) {
+            public void onDrawerOpened(View drawerView)
+            {
             }
 
             @Override
-            public void onDrawerClosed(View drawerView) {
+            public void onDrawerClosed(View drawerView)
+            {
                 ((MainPreferencesFragment) getPreferencesFragment()).showMainMenu();
             }
 
             @Override
-            public void onDrawerStateChanged(int newState) {
+            public void onDrawerStateChanged(int newState)
+            {
             }
         });
 
         Typeface typefacePrime = Typefaces.get(this, "fonts/prime.otf");
-        TextClock textClock = (TextClock) findViewById(R.id.textClock);
-        TextView tvWaitText = (TextView) findViewById(R.id.tvWaitText);
+        TextClock textClock = findViewById(R.id.textClock);
+        TextView tvWaitText = findViewById(R.id.tvWaitText);
         textClock.setTypeface(typefacePrime);
         tvWaitText.setTypeface(typefacePrime);
 
-        chart1 = (LineChart) findViewById(R.id.chart);
+        chart1 = findViewById(R.id.chart);
         chart1.setDrawGridBackground(false);
         chart1.getDescription().setEnabled(false);
         chart1.setHardwareAccelerationEnabled(true);
@@ -904,24 +979,22 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         xAxis.setValueFormatter(chartAxisValueFormatter);
 
         loadPreferences();
-
-        if (SettingsUtil.isFirstRun(this)) {
-            new Handler().postDelayed(new Runnable() {
+        if (SettingsUtil.isFirstRun(this))
+        {
+            new Handler().postDelayed(new Runnable()
+            {
                 @Override
-                public void run() {
+                public void run()
+                {
                     mDrawer.openDrawer(GravityCompat.START, true);
                 }
             }, 1000);
         }
 
-//        if (SettingsUtil.isUseENG(this)) {
-        //          if WheelLog.localeManager.getLocale(this, language);
-//            setNewLocale("en",false);
-//        }
-
         // Use this check to determine whether BLE is supported on the device.  Then you can
         // selectively disable BLE-related features.
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE))
+        {
             Toast.makeText(this, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             finish();
         }
@@ -933,73 +1006,94 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         mBluetoothAdapter = bluetoothManager.getAdapter();
 
         // Checks if Bluetooth is supported on the device.
-        if (mBluetoothAdapter == null) {
+        if (mBluetoothAdapter == null)
+        {
             Toast.makeText(this, R.string.error_bluetooth_not_supported, Toast.LENGTH_SHORT).show();
             finish();
-        } else if (!mBluetoothAdapter.isEnabled()) {
+        }
+        else if (!mBluetoothAdapter.isEnabled())
+        {
             // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
             // fire an intent to display a dialog asking the user to grant permission to enable it.
             if (!mBluetoothAdapter.isEnabled())
+            {
                 startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), RESULT_REQUEST_ENABLE_BT);
-        } else {
+            }
+        }
+        else
+        {
             startBluetoothService();
         }
     }
 
     @Override
-    public void onResume() {
+    public void onResume()
+    {
         super.onResume();
 
         if (SettingsUtil.isAutoUploadEnabled(this))
+        {
             getGoogleApiClient().connect();
+        }
 
-        if (mBluetoothLeService != null &&
-                mConnectionState != mBluetoothLeService.getConnectionState())
+        if (mBluetoothLeService != null && mConnectionState != mBluetoothLeService.getConnectionState())
+        {
             setConnectionState(mBluetoothLeService.getConnectionState());
+        }
 
         if (WheelData.getInstance().getWheelType() != WHEEL_TYPE.Unknown)
+        {
             configureDisplay(WheelData.getInstance().getWheelType());
+        }
 
         registerReceiver(mBluetoothUpdateReceiver, makeIntentFilter());
         updateScreen(true);
     }
 
-    public void onWindowFocusChanged(boolean hasFocus) {
+    public void onWindowFocusChanged(boolean hasFocus)
+    {
         super.onWindowFocusChanged(hasFocus);
         setMenuIconStates();
     }
 
     @Override
-    public void onPause() {
+    public void onPause()
+    {
         super.onPause();
         unregisterReceiver(mBluetoothUpdateReceiver);
-        //cationUtil.getInstance().unregisterReceiver();
         if (SettingsUtil.isAutoUploadEnabled(this))
+        {
             getGoogleApiClient().disconnect();
+        }
     }
 
     @Override
-    protected void onDestroy() {
+    protected void onDestroy()
+    {
         stopPebbleService();
         stopGarminConnectIQ();
         stopLoggingService();
         WheelData.getInstance().full_reset();
-        if (mBluetoothLeService != null) {
+        if (mBluetoothLeService != null)
+        {
             unbindService(mServiceConnection);
             stopService(new Intent(getApplicationContext(), BluetoothLeService.class));
             mBluetoothLeService = null;
         }
+
         super.onDestroy();
-        new CountDownTimer(60000, 100) {
+        new CountDownTimer(60000, 100)
+        {
 
             @Override
-            public void onTick(long millisUntilFinished) {
+            public void onTick(long millisUntilFinished)
+            {
                 // do something after 1s
             }
 
             @Override
-            public void onFinish() {
-
+            public void onFinish()
+            {
                 android.os.Process.killProcess(android.os.Process.myPid());
                 // do something end times 5s
             }
@@ -1009,7 +1103,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
+    public boolean onCreateOptionsMenu(Menu menu)
+    {
         getMenuInflater().inflate(R.menu.main, menu);
         mMenu = menu;
         miSearch = mMenu.findItem(R.id.miSearch);
@@ -1020,8 +1115,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
+    public boolean onOptionsItemSelected(MenuItem item)
+    {
+        switch (item.getItemId())
+        {
             case R.id.miSearch:
                 MainActivityPermissionsDispatcher.startScanActivityWithCheck(this);
                 return true;
@@ -1034,32 +1131,50 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             case R.id.miWatch:
                 togglePebbleService();
                 if (SettingsUtil.getGarminConnectIQEnable(this))
+                {
                     toggleGarminConnectIQ();
+                }
                 else
+                {
                     stopGarminConnectIQ();
+                }
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
 
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
+    public boolean onKeyUp(int keyCode, KeyEvent event)
+    {
         View settings_layout = findViewById(R.id.settings_layout);
-        switch (keyCode) {
+        switch (keyCode)
+        {
             case KeyEvent.KEYCODE_MENU:
-                if (mDrawer.isDrawerOpen(settings_layout)) {
+                if (mDrawer.isDrawerOpen(settings_layout))
+                {
                     mDrawer.closeDrawers();
-                } else {
+                }
+                else
+                {
                     mDrawer.openDrawer(GravityCompat.START, true);
                 }
                 return true;
             case KeyEvent.KEYCODE_BACK:
-                if (mDrawer.isDrawerOpen(settings_layout)) {
+                if (mDrawer.isDrawerOpen(settings_layout))
+                {
                     if (((MainPreferencesFragment) getPreferencesFragment()).isMainMenu())
+                    {
                         mDrawer.closeDrawer(GravityCompat.START, true);
-                    else ((MainPreferencesFragment) getPreferencesFragment()).showMainMenu();
-                } else {
-                    if (doubleBackToExitPressedOnce) {
+                    }
+                    else
+                    {
+                        ((MainPreferencesFragment) getPreferencesFragment()).showMainMenu();
+                    }
+                }
+                else
+                {
+                    if (doubleBackToExitPressedOnce)
+                    {
                         finish();
                         return true;
                     }
@@ -1067,9 +1182,11 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                     doubleBackToExitPressedOnce = true;
                     showSnackBar(R.string.back_to_exit);
 
-                    new Handler().postDelayed(new Runnable() {
+                    new Handler().postDelayed(new Runnable()
+                    {
                         @Override
-                        public void run() {
+                        public void run()
+                        {
                             doubleBackToExitPressedOnce = false;
                         }
                     }, 2000);
@@ -1080,23 +1197,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         }
     }
 
-    ViewPager.SimpleOnPageChangeListener pageChangeListener = new ViewPager.SimpleOnPageChangeListener() {
-        @Override
-        public void onPageSelected(int position) {
-            super.onPageSelected(position);
-            viewPagerPage = position;
-            updateScreen(true);
-        }
-    };
-
-    public void loadPreferences() {
+    public void loadPreferences()
+    {
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getBaseContext());
         use_mph = sharedPreferences.getBoolean(getString(R.string.use_mph), false);
         int max_speed = sharedPreferences.getInt(getString(R.string.max_speed), 30) * 10;
         wheelView.setMaxSpeed(max_speed);
         wheelView.setUseMPH(use_mph);
-        //wheelView.invalidate();
-        //wheelView.resetBatteryLowest();
 
         boolean alarms_enabled = sharedPreferences.getBoolean(getString(R.string.alarms_enabled), false);
         boolean use_ratio = sharedPreferences.getBoolean(getString(R.string.use_ratio), false);
@@ -1120,7 +1227,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         wheelView.invalidate();
         final boolean connectSound = sharedPreferences.getBoolean(getString(R.string.connection_sound), false);
         final int beepPeriod = sharedPreferences.getInt(getString(R.string.no_connection_sound), 0) * 1000;
-        if (mBluetoothLeService != null) {
+        if (mBluetoothLeService != null)
+        {
             mBluetoothLeService.setConnectionSounds(connectSound, beepPeriod);
         }
 
@@ -1129,11 +1237,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
         int gotway_negative = Integer.parseInt(sharedPreferences.getString(getString(R.string.gotway_negative), "-1"));
         WheelData.getInstance().setGotwayNegative(gotway_negative);
-        //boolean gotway_84v = sharedPreferences.getBoolean(getString(R.string.gotway_84v), false);
-        //WheelData.getInstance().setGotway84V(gotway_84v);
         WheelData.getInstance().setAlarmsEnabled(alarms_enabled);
 
-        if (alarms_enabled) {
+        if (alarms_enabled)
+        {
             int alarm1Speed = sharedPreferences.getInt(getString(R.string.alarm_1_speed), 0);
             int alarm2Speed = sharedPreferences.getInt(getString(R.string.alarm_2_speed), 0);
             int alarm3Speed = sharedPreferences.getInt(getString(R.string.alarm_3_speed), 0);
@@ -1164,73 +1271,81 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                     rotationSpeed, rotationVoltage, firstPwm, secondPwm, thirdPwm, alarmFactor3,
                     warningSpeed, speedCorrection, batteryCapacity, chargingPower);
             wheelView.setWarningSpeed(alarm1Speed);
-        } else
+        }
+        else
+        {
             wheelView.setWarningSpeed(0);
+        }
 
         boolean auto_log = sharedPreferences.getBoolean(getString(R.string.auto_log), false);
         boolean log_location = sharedPreferences.getBoolean(getString(R.string.log_location_data), false);
         boolean auto_upload = sharedPreferences.getBoolean(getString(R.string.auto_upload), false);
 
         if (auto_log)
+        {
             MainActivityPermissionsDispatcher.acquireStoragePermissionWithCheck(this);
+        }
 
         if (log_location)
+        {
             MainActivityPermissionsDispatcher.acquireLocationPermissionWithCheck(this);
-//        if (mConnect_sound)
-//            MainActivityPermissionsDispatcher.acquireWakeLockPermissionWithCheck(this);
+        }
+
         if (auto_upload)
+        {
             getGoogleApiClient().connect();
+        }
 
         updateScreen(true);
     }
 
     @NeedsPermission({Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE})
-    void acquireStoragePermission() {
+    void acquireStoragePermission()
+    {
     }
 
     @NeedsPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    void acquireLocationPermission() {
+    void acquireLocationPermission()
+    {
     }
 
-    /*
-        @NeedsPermission(Manifest.permission.WAKE_LOCK)
-        void acquireWakeLockPermission() {}
-
-        @OnPermissionDenied(Manifest.permission.WAKE_LOCK)
-        void wakeLockPermitionDenided(){
-            SettingsUtil.setConnectionSound(this, false);
-            ((PreferencesFragment) getPreferencesFragment()).refreshVolatileSettings();
-        }
-        */
     @OnPermissionDenied({Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE})
-    void storagePermissionDenied() {
+    void storagePermissionDenied()
+    {
         SettingsUtil.setAutoLog(this, false);
         ((MainPreferencesFragment) getPreferencesFragment()).refreshVolatileSettings();
     }
 
     @OnPermissionDenied(Manifest.permission.ACCESS_FINE_LOCATION)
-    void locationPermissionDenied() {
+    void locationPermissionDenied()
+    {
         SettingsUtil.setLogLocationEnabled(this, false);
         ((MainPreferencesFragment) getPreferencesFragment()).refreshVolatileSettings();
     }
 
-    private void showSnackBar(int msg) {
+    private void showSnackBar(int msg)
+    {
         showSnackBar(getString(msg));
     }
 
-    private void showSnackBar(String msg) {
+    private void showSnackBar(String msg)
+    {
         showSnackBar(msg, 2000);
     }
 
-    private void showSnackBar(String msg, int timeout) {
-        if (snackbar == null) {
+    private void showSnackBar(String msg, int timeout)
+    {
+        if (snackbar == null)
+        {
             View mainView = findViewById(R.id.main_view);
             snackbar = Snackbar
                     .make(mainView, "", Snackbar.LENGTH_LONG);
             snackbar.getView().setBackgroundResource(R.color.primary_dark);
-            snackbar.setAction(android.R.string.ok, new View.OnClickListener() {
+            snackbar.setAction(android.R.string.ok, new View.OnClickListener()
+            {
                 @Override
-                public void onClick(View view) {
+                public void onClick(View view)
+                {
                 }
             });
         }
@@ -1239,83 +1354,118 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         snackbar.show();
     }
 
-    private void hideSnackBar() {
+    private void hideSnackBar()
+    {
         if (snackbar == null)
+        {
             return;
+        }
 
         snackbar.dismiss();
     }
 
-    private void stopLoggingService() {
+    private void stopLoggingService()
+    {
         if (LoggingService.isInstanceCreated())
+        {
             toggleLoggingService();
+        }
     }
 
     @NeedsPermission({Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE})
-    void toggleLoggingService() {
+    void toggleLoggingService()
+    {
         Intent dataLoggerServiceIntent = new Intent(getApplicationContext(), LoggingService.class);
 
         if (LoggingService.isInstanceCreated())
+        {
             stopService(dataLoggerServiceIntent);
+        }
         else
+        {
             ContextCompat.startForegroundService(this, dataLoggerServiceIntent);
+        }
     }
 
-    private void stopPebbleService() {
+    private void stopPebbleService()
+    {
         if (PebbleService.isInstanceCreated())
+        {
             togglePebbleService();
+        }
     }
 
-    private void togglePebbleService() {
+    private void togglePebbleService()
+    {
         Intent pebbleServiceIntent = new Intent(getApplicationContext(), PebbleService.class);
         if (PebbleService.isInstanceCreated())
+        {
             stopService(pebbleServiceIntent);
+        }
         else
+        {
             ContextCompat.startForegroundService(this, pebbleServiceIntent);
+        }
     }
 
-    private void stopGarminConnectIQ() {
+    private void stopGarminConnectIQ()
+    {
         if (GarminConnectIQ.isInstanceCreated())
+        {
             toggleGarminConnectIQ();
+        }
     }
 
-    private void toggleGarminConnectIQ() {
+    private void toggleGarminConnectIQ()
+    {
         Intent garminConnectIQIntent = new Intent(getApplicationContext(), GarminConnectIQ.class);
         if (GarminConnectIQ.isInstanceCreated())
+        {
             stopService(garminConnectIQIntent);
+        }
         else
+        {
             ContextCompat.startForegroundService(this, garminConnectIQIntent);
+        }
     }
 
-    private void startBluetoothService() {
+    private void startBluetoothService()
+    {
         Intent bluetoothServiceIntent = new Intent(getApplicationContext(), BluetoothLeService.class);
         ContextCompat.startForegroundService(this, bluetoothServiceIntent);
         bindService(bluetoothServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
     }
 
-    private void toggleConnectToWheel() {
+    private void toggleConnectToWheel()
+    {
         sendBroadcast(new Intent(Constants.ACTION_REQUEST_CONNECTION_TOGGLE));
     }
 
     @NeedsPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-    void startScanActivity() {
+    void startScanActivity()
+    {
         startActivityForResult(new Intent(MainActivity.this, ScanActivity.class), RESULT_DEVICE_SCAN_REQUEST);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults)
+    {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         // NOTE: delegate the permission handling to generated method
         MainActivityPermissionsDispatcher.onRequestPermissionsResult(this, requestCode, grantResults);
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data)
+    {
         super.onActivityResult(requestCode, resultCode, data);
         Timber.i("onActivityResult");
-        switch (requestCode) {
+        switch (requestCode)
+        {
             case RESULT_DEVICE_SCAN_REQUEST:
-                if (resultCode == RESULT_OK) {
+                if (resultCode == RESULT_OK)
+                {
                     mDeviceAddress = data.getStringExtra("MAC");
                     Timber.i("Device selected = %s", mDeviceAddress);
                     String mDeviceName = data.getStringExtra("NAME");
@@ -1331,16 +1481,22 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 break;
             case RESULT_REQUEST_ENABLE_BT:
                 if (mBluetoothAdapter.isEnabled())
+                {
                     startBluetoothService();
-                else {
+                }
+                else
+                {
                     Toast.makeText(this, R.string.bluetooth_required, Toast.LENGTH_LONG).show();
                     finish();
                 }
                 break;
             case REQUEST_CODE_RESOLUTION:
                 if (resultCode == RESULT_OK)
+                {
                     getGoogleApiClient().connect();
-                else {
+                }
+                else
+                {
                     SettingsUtil.setAutoUploadEnabled(this, false);
                     ((MainPreferencesFragment) getPreferencesFragment()).refreshVolatileSettings();
                 }
@@ -1348,7 +1504,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         }
     }
 
-    private IntentFilter makeIntentFilter() {
+    private IntentFilter makeIntentFilter()
+    {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Constants.ACTION_BLUETOOTH_CONNECTION_STATE);
         intentFilter.addAction(Constants.ACTION_WHEEL_DATA_AVAILABLE);
@@ -1362,41 +1519,32 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         return intentFilter;
     }
 
-    IAxisValueFormatter chartAxisValueFormatter = new IAxisValueFormatter() {
-        @Override
-        public String getFormattedValue(float value, AxisBase axis) {
-            if (value < xAxis_labels.size())
-                return xAxis_labels.get((int) value);
-            else
-                return "";
-        }
-
-        // we don't draw numbers, so no decimal digits needed
-        @Override
-        public int getDecimalDigits() {
-            return 0;
-        }
-    };
-
     @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult)
+    {
         Timber.i("GoogleApiClient connection failed: %s", connectionResult.toString());
-        if (!connectionResult.hasResolution()) {
+        if (!connectionResult.hasResolution())
+        {
             // show the localized error dialog.
             GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
             SettingsUtil.setAutoUploadEnabled(this, false);
             ((MainPreferencesFragment) getPreferencesFragment()).refreshVolatileSettings();
             return;
         }
-        try {
+        try
+        {
             connectionResult.startResolutionForResult(this, REQUEST_CODE_RESOLUTION);
-        } catch (IntentSender.SendIntentException e) {
+        }
+        catch (IntentSender.SendIntentException e)
+        {
             Timber.e("Exception while starting resolution activity");
         }
     }
 
-    public GoogleApiClient getGoogleApiClient() {
-        if (mGoogleApiClient == null) {
+    public GoogleApiClient getGoogleApiClient()
+    {
+        if (mGoogleApiClient == null)
+        {
             mGoogleApiClient = new GoogleApiClient.Builder(this)
                     .addApi(Drive.API)
                     .addScope(Drive.SCOPE_FILE)
@@ -1406,13 +1554,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         return mGoogleApiClient;
     }
 
-    private Fragment getPreferencesFragment() {
+    private Fragment getPreferencesFragment()
+    {
         Fragment frag = getSupportFragmentManager().findFragmentByTag(Constants.PREFERENCES_FRAGMENT_TAG);
-        if (frag == null) {
+        if (frag == null)
+        {
             return new MainPreferencesFragment();
         }
         return frag;
     }
-
-
 }
