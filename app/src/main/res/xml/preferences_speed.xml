@@ -16,9 +16,20 @@
 
     <com.cooper.wheellog.presentation.preferences.SeekBarPreference
         android:defaultValue="0"
-        android:key="@string/voltage_threshold"
-        android:summary="@string/voltage_threshold_description"
-        android:title="@string/voltage_threshold_title"
+        android:key="@string/voltage_speed_threshold"
+        android:summary="@string/voltage_speed_threshold_description"
+        android:title="@string/voltage_speed_threshold_title"
+        sample:dependency="use_better_percents"
+        sample:sbp_increment="1"
+        sample:sbp_maxValue="200"
+        sample:sbp_measurementUnit="km/h"
+        sample:sbp_minValue="0" />
+
+    <com.cooper.wheellog.presentation.preferences.SeekBarPreference
+        android:defaultValue="0"
+        android:key="@string/tiltback_voltage"
+        android:summary="@string/tiltback_voltage_description"
+        android:title="@string/tiltback_voltage_title"
         sample:dependency="use_better_percents"
         sample:sbp_increment="1"
         sample:sbp_maxValue="1270"
@@ -72,7 +83,7 @@
         android:title="@string/speed_correction_title"
         sample:sbp_increment="1"
         sample:sbp_maxValue="2000"
-        sample:sbp_measurementUnit="% (*0.1)"
+        sample:sbp_measurementUnit="%"
         sample:sbp_minValue="0" />
 
     <CheckBoxPreference
@@ -100,6 +111,6 @@
         sample:sbp_increment="1"
         sample:sbp_maxValue="1000"
         sample:sbp_minValue="0"
-        sample:sbp_measurementUnit="A (*0.1)"/>
+        sample:sbp_measurementUnit="A"/>
 
 </PreferenceScreen>

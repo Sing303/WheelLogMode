@@ -100,7 +100,7 @@
             sample:dependency="alarms_enabled"
             sample:sbp_increment="1"
             sample:sbp_maxValue="2000"
-            sample:sbp_measurementUnit="0.1*Km/h"
+            sample:sbp_measurementUnit="Km/h"
             sample:sbp_minValue="0" />
         <com.cooper.wheellog.presentation.preferences.SeekBarPreference
             android:defaultValue="0"
@@ -110,7 +110,7 @@
             sample:dependency="alarms_enabled"
             sample:sbp_increment="1"
             sample:sbp_maxValue="1270"
-            sample:sbp_measurementUnit="0.1*V"
+            sample:sbp_measurementUnit="V"
             sample:sbp_minValue="0" />
         <com.cooper.wheellog.presentation.preferences.SeekBarPreference
             android:defaultValue="76"
@@ -151,6 +151,26 @@
             sample:sbp_increment="1"
             sample:sbp_maxValue="100"
             sample:sbp_measurementUnit="km/h"
+            sample:sbp_minValue="0" />
+        <com.cooper.wheellog.presentation.preferences.SeekBarPreference
+            android:defaultValue="0"
+            android:key="@string/startRecommendPwm"
+            android:summary="@string/startRecommendPwm_description"
+            android:title="@string/startRecommendPwm_title"
+            sample:dependency="alarms_enabled"
+            sample:sbp_increment="1"
+            sample:sbp_maxValue="100"
+            sample:sbp_measurementUnit="%"
+            sample:sbp_minValue="0" />
+        <com.cooper.wheellog.presentation.preferences.SeekBarPreference
+            android:defaultValue="0"
+            android:key="@string/finishRecommendPwm"
+            android:summary="@string/finishRecommendPwm_description"
+            android:title="@string/finishRecommendPwm_title"
+            sample:dependency="alarms_enabled"
+            sample:sbp_increment="1"
+            sample:sbp_maxValue="100"
+            sample:sbp_measurementUnit="%"
             sample:sbp_minValue="0" />
     </PreferenceCategory>
 

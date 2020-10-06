@@ -387,6 +387,19 @@
                 android:layout_width="0sp"
                 style="@style/Stats" />
 
+            <TextView
+                android:id="@+id/tvComfortVoltageCostTitle"
+                android:visibility="gone"
+                android:layout_width="0sp"
+                style="@style/Stats.Title"
+                android:text="@string/comfort_voltage_cost_title"/>
+
+            <TextView
+                android:id="@+id/tvComfortVoltageCost"
+                android:visibility="gone"
+                android:layout_width="0sp"
+                style="@style/Stats" />
+
         </androidx.gridlayout.widget.GridLayout>
 
     </ScrollView>

@@ -17,6 +17,7 @@ import com.cooper.wheellog.R;
 import com.cooper.wheellog.WheelData;
 import com.cooper.wheellog.utils.Typefaces;
 
+import java.util.ArrayList;
 import java.util.Locale;
 
 import timber.log.Timber;
@@ -65,7 +66,7 @@ public class WheelView extends View
     int currentBattery = 0;
     private Paint outerArcPaint;
     private int mMaxSpeed = 300;
-    private boolean mTrueBattery = false;
+    private boolean mFixedBattery = false;
     private boolean mCurrentOnDial = false;
     private int mVoltageThreshold = 0;
     private boolean mUseMPH = false;
@@ -73,8 +74,10 @@ public class WheelView extends View
     private int mSafeLoadPercent = 0;
     private int mWarningSpeed = 0;
     private int mBattery = 0;
+    private int mLastRestBattery = 0;
     private int mBatteryLowest = 101;
     private int mTemperature = 0;
+    private int mMaxTemperature = 0;
     private String mCurrentTime = "00:00:00";
     private Double mDistance = 0.0;
     private Double mTotalDistance = 0.0;
@@ -141,10 +144,10 @@ public class WheelView extends View
 
     public void setBetterPercent(boolean betterPercent)
     {
-        mTrueBattery = betterPercent;
+        mFixedBattery = betterPercent;
     }
 
-    public void setVoltageThreshold(int voltageThreshold)
+    public void setVoltageSpeedThreshold(int voltageThreshold)
     {
         mVoltageThreshold = voltageThreshold;
     }
@@ -164,9 +167,7 @@ public class WheelView extends View
     public void setSpeed(double speed)
     {
         if (mSpeed == speed)
-        {
             return;
-        }
 
         mSpeed = speed;
         speed = speed > mMaxSpeed ? mMaxSpeed : speed;
@@ -178,12 +179,21 @@ public class WheelView extends View
     public void setSafeLoadPercent(int safeLoadPercent)
     {
         if (mSafeLoadPercent == safeLoadPercent)
-        {
             return;
-        }
 
         mSafeLoadPercent = safeLoadPercent;
         mSafeLoadPercent = mSafeLoadPercent < 0 ? 0 : mSafeLoadPercent;
+        refresh();
+    }
+
+    private int mAvgLoadPercent;
+    public void getAvgLoadPercent(int avgLoadPercent)
+    {
+        if (mAvgLoadPercent == avgLoadPercent)
+            return;
+
+        mAvgLoadPercent = avgLoadPercent;
+        mAvgLoadPercent = mAvgLoadPercent < 0 ? 0 : mAvgLoadPercent;
         refresh();
     }
 
@@ -192,8 +202,9 @@ public class WheelView extends View
         mWarningSpeed = speed * 10;
     }
 
-    public void setBattery(int battery)
+    public void setBattery(int battery, int lastRestBattery)
     {
+        mLastRestBattery = lastRestBattery;
         if (mBattery == battery)
         {
             return;
@@ -565,28 +576,25 @@ public class WheelView extends View
 
         String speedString;
         if (speed < 100)
-        {
             speedString = String.format(Locale.US, "%.1f", speed / 10.0);
-        }
         else
-        {
             speedString = String.format(Locale.US, "%02d", Math.round(speed / 10.0));
-        }
 
-        if (mWarningSpeed > 0 && mSpeed >= mWarningSpeed)
-        {
-            textPaint.setColor(getContext().getResources().getColor(R.color.accent));
-        }
-        else
-        {
-            textPaint.setColor(getContext().getResources().getColor(R.color.wheelview_speed_text));
-        }
+        //if (mWarningSpeed > 0 && mSpeed >= mWarningSpeed)
+        //{
+        //    textPaint.setColor(getContext().getResources().getColor(R.color.accent));
+        //}
+        //else
+        //{
+        //    textPaint.setColor(getContext().getResources().getColor(R.color.wheelview_speed_text));
+        //}
+        textPaint.setColor(getContext().getResources().getColor(R.color.wheelview_speed_text));
 
         textPaint.setTextSize(speedTextSize);
         canvas.drawText(speedString, outerArcRect.centerX(), speedTextRect.centerY() + (speedTextRect.height() / 2), textPaint);
         textPaint.setTextSize(speedTextKPHSize);
         textPaint.setColor(getContext().getResources().getColor(R.color.wheelview_text));
-        String metric = "(" + mSafeLoadPercent + "%) " + (mUseMPH ? getResources().getString(R.string.mph) : getResources().getString(R.string.kmh)) + " (" + WheelData.getInstance().mMaxLoadPercent + "%)";
+        String metric = "(" + mSafeLoadPercent + "%) (" + mAvgLoadPercent + "%) (" + WheelData.getInstance().mMaxLoadPercent + "%)";
         canvas.drawText(metric, outerArcRect.centerX(), speedTextRect.bottom + (speedTextKPHHeight * 1.25F), textPaint);
 
         //####################################################
@@ -606,30 +614,32 @@ public class WheelView extends View
                 canvas.rotate((144 + (currentBattery * 2.25F) - 180), innerArcRect.centerY(), innerArcRect.centerX());
             }
 
-            String bestbatteryString = String.format(Locale.US, "%02d%%", mBattery);
-            canvas.drawText(bestbatteryString, batteryTextRect.centerX(), batteryTextRect.centerY(), textPaint);
+            String bestBatteryString = String.format(Locale.US, "%02d%%", mBattery);
+            canvas.drawText(bestBatteryString, batteryTextRect.centerX(), batteryTextRect.centerY(), textPaint);
             canvas.restore();
             canvas.save();
-/// true battery
-            if (mTrueBattery)
-            {
+
+            // Fixed battery
+            //if (mFixedBattery)
+            //{
                 if (getWidth() > getHeight())
                 {
-                    canvas.rotate((144 + (-3.3F * 2.25F) - 180), innerArcRect.centerX(), innerArcRect.centerY());
+                    canvas.rotate((144 + (1 * 2.25F) - 188), innerArcRect.centerX(), innerArcRect.centerY());
                 }
                 else
                 {
-                    canvas.rotate((144 + (-2 * 2.25F) - 180), innerArcRect.centerY(), innerArcRect.centerX());
+                    canvas.rotate((144 + (1 * 2.25F) - 188), innerArcRect.centerY(), innerArcRect.centerX());
                 }
 
-                String batteryStringBet = mVoltageThreshold > 0 ? " *" : "";
-                String batteryString = String.format(Locale.US, "%s", "fixed" + batteryStringBet);
-                canvas.drawText(batteryString, batteryTextRect.centerX(), batteryTextRect.centerY(), textPaint);
+                //String batteryStringBet = mVoltageThreshold > 0 ? " *" : "";
+                //String batteryString = String.format(Locale.US, "%s", "fixed" + batteryStringBet);
+                String lastRestBatteryString = String.format(Locale.US, "%02d", (int)(mBatteryCapacity * ((double)mLastRestBattery / 100))) + " wh";
+                canvas.drawText(lastRestBatteryString, batteryTextRect.centerX(), batteryTextRect.centerY(), textPaint);
                 canvas.restore();
                 canvas.save();
-            }
-/// <<<<
+           // }
 
+            // Temperature
             if (getWidth() > getHeight())
             {
                 canvas.rotate((143.5F + (currentTemperature * 2.25F)), innerArcRect.centerX(), innerArcRect.centerY());
@@ -638,9 +648,28 @@ public class WheelView extends View
             {
                 canvas.rotate((143.5F + (currentTemperature * 2.25F)), innerArcRect.centerY(), innerArcRect.centerX());
             }
-            String temperatureString = String.format(Locale.US, "%02dC", mTemperature);
+            String temperatureString = String.format(Locale.US, "%02d℃", mTemperature);
             canvas.drawText(temperatureString, temperatureTextRect.centerX(), temperatureTextRect.centerY(), textPaint);
             canvas.restore();
+            canvas.save();
+
+            // Max temperature
+            if (getWidth() > getHeight())
+            {
+                canvas.rotate((143.5F + (1 * 2.25F) - 105), innerArcRect.centerX(), innerArcRect.centerY());
+            }
+            else
+            {
+                canvas.rotate((143.5F + (1 * 2.25F) - 105), innerArcRect.centerY(), innerArcRect.centerX());
+            }
+
+            if (mMaxTemperature < mTemperature)
+                mMaxTemperature = mTemperature;
+
+            String maxTemperatureString = String.format(Locale.US, "%02d℃", mMaxTemperature);
+            canvas.drawText(maxTemperatureString, temperatureTextRect.centerX(), temperatureTextRect.centerY(), textPaint);
+            canvas.restore();
+            canvas.save();
         }
 
         if (getHeight() != getWidth())
@@ -772,5 +801,11 @@ public class WheelView extends View
         textPaint.setTextSize(result);
         textPaint.getTextBounds(text, 0, text.length(), textBounds);
         return result;
+    }
+
+    public int mBatteryCapacity = 0;
+    public void setBatteryCapacity(int batteryCapacity)
+    {
+        mBatteryCapacity = batteryCapacity;
     }
 }

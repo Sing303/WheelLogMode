@@ -35,7 +35,7 @@ public class LoggingService extends Service
     private static LoggingService instance = null;
     SimpleDateFormat sdf;
     private String filename;
-    private Location mLocation;
+    public static Location mLocation;
 
     // Define a listener that responds to location updates
     LocationListener locationListener = new LocationListener()

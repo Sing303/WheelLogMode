@@ -32,7 +32,8 @@
     <string name="serial_number">Серийный номер</string>
     <string name="left_km_title">Оставшийся пробег (*)</string>
     <string name="last_rest_voltage_title">Заряд в покое (*)</string>
-    <string name="time_charge_title">Время зарядки</string>
+    <string name="time_charge_title">Время зарядки (*)</string>
+    <string name="comfort_voltage_cost_title">Эффективный вольтаж (*)</string>
     <string name="waiting_for_wheel">Ожидание колеса</string>
     <string name="fan_status">Вентилятор</string>
     <string name="speed">Скорость</string>
@@ -76,7 +77,7 @@
 
     <string name="reset_user_distance_title">Обнулить мой пробег</string>
     <string name="edit_mac_addr_title">Изменить MAC адрес</string>
-    <string name="about_app_title">О программе Wheellog</string>
+    <string name="about_app_title">О Wheellog</string>
     <string name="settings_title">Настройки</string>
     <string name="wheel_pass_imotion">Пароль (только для Inmotion)</string>
     <string name="amp">А</string>
@@ -205,30 +206,33 @@
     <string name="alarm_factor3_title">PWM третьего предупреждения</string>
     <string name="alarm_factor3_description">Должен быть больше второго</string>
     <string name="warning_speed_title">Предварительное предупреждение</string>
-    <string name="warning_speed_description">Предварительное предупреждение по скорости (0 = откл)</string>
+    <string name="warning_speed_description">Предварительное предупреждение по скорости (0 - откл)</string>
     <string name="no_connection_sound_title">Периодические оповещения в случае потери связи</string>
-    <string name="no_connection_sound_description">Период оповещений, 0-отключить</string>
-    <string name="speed_correction_title">Коррекция скорости в % (*0.1)</string>
-    <string name="speed_correction_description">Коррекция скорости в % (*0.1)</string>
-    <string name="use_stop_music_title">Выключение музыки (experiment)</string>
-    <string name="use_stop_music_description">Автовыключение музыки при скорости ниже 3.5 км/ч</string>
+    <string name="no_connection_sound_description">Период оповещений, 0 - откл</string>
+    <string name="speed_correction_title">Коррекция скорости в %</string>
+    <string name="speed_correction_description">Коррекция скорости (Значение умножить на 10)</string>
+    <string name="use_stop_music_title">Выключение звука</string>
+    <string name="use_stop_music_description">Автовыключение звука при скорости ниже 3.5 км/ч</string>
     <string name="first_pwm_title">PWM первого предупреждения</string>
-    <string name="first_pwm_description">Процент от холостой раскрутки для 1 предупреждения (умл. 76)</string>
+    <string name="first_pwm_description">% от холостой раскрутки для первого предупреждения (по умолчанию 76). До 80 безопасно, 80-85 риск, 86+ высокий риск. Не зависит от батареи</string>
     <string name="second_pwm_title">PWM второго предупреждения</string>
-    <string name="second_pwm_description">Должен быть больше первого (умл. 78)</string>
+    <string name="second_pwm_description">Должен быть больше первого (по умолчанию 78)</string>
     <string name="third_pwm_title">PWM третьего предупреждения</string>
-    <string name="third_pwm_description">Должен быть больше второго (умл. 80)</string>
+    <string name="third_pwm_description">Должен быть больше второго (по умолчанию 80)</string>
     <string name="rotation_speed_title">Скорость раскрутки</string>
-    <string name="rotation_speed_description">Измеренная на весу максимальная скорость вращения колеса</string>
+    <string name="rotation_speed_description">Раскрутите колесо в воздухе до отключения, запишите в это поле макс. скорость, умножив её на 10 (Если макс. скорость была 66.5 км/ч, то вписать 665)</string>
     <string name="rotation_voltage_title">Напряжение раскрутки</string>
-    <string name="rotation_voltage_description">Напряжение при котором измерялась скорость раскрутки</string>
-    <string name="voltage_threshold_title">Порог напряжения</string>
-    <string name="voltage_threshold_description">Напряжение, которое требуется для поддержания комфортной скорости в V (*0.1)</string>
-
+    <string name="rotation_voltage_description">После установки скорости раскрутки, впишите в это поле напряжение, умноженное на 10 (Например, если напряжение 79.54V, то вписать 795)</string>
+    <string name="voltage_speed_threshold_title">Минимальная комфортная скорость</string>
+    <string name="voltage_speed_threshold_description">Скорость, которая является минимальной комфортной. Работает только с включенным GPS (0 - откл)</string>
+    <string name="tiltback_voltage_title">Напряжение подъёма педалей</string>
+    <string name="tiltback_voltage_description">Не трогать, если не известно точное значение (Значение умножить на 10)</string>
     <string name="battery_capacity_title">Ёмкость батареи</string>
     <string name="battery_capacity_description">Ёмкость батареи в Wh</string>
     <string name="charging_power_title">Мощность зарядки</string>
-    <string name="charging_power_description">Мощность зарядки в A (*0.1)</string>
-
-
+    <string name="charging_power_description">Мощность зарядки (Значение умножить на 10)</string>
+    <string name="startRecommendPwm_title">Старт рекомендуемого % PWM</string>
+    <string name="startRecommendPwm_description">Старт рекомендуемого % PWM</string>
+    <string name="finishRecommendPwm_title">Финиш рекомендуемого % PWM</string>
+    <string name="finishRecommendPwm_description">Финиш рекомендуемого % PWM</string>
 </resources>

@@ -111,6 +111,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     TextView tvRidingTime;
     TextView tvMode;
     TextView tvTimeCharge;
+    TextView tvComfortVoltageCost;
     LineChart chart1;
     WheelView wheelView;
     int viewPagerPage = 0;
@@ -420,6 +421,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         TextView tvLeftKmTitle = findViewById(R.id.tvLeftKmTitle);
         TextView tvTimeChargeTitle = findViewById(R.id.tvTimeChargeTitle);
         TextView tvTimeCharge = findViewById(R.id.tvTimeCharge);
+        TextView tvComfortVoltageCostTitle = findViewById(R.id.tvComfortVoltageCostTitle);
+        TextView tvComfortVoltageCost = findViewById(R.id.tvComfortVoltageCost);
         TextView tvLastRestVoltageTitle = findViewById(R.id.tvLastRestVoltageTitle);
 
         switch (wheelType)
@@ -499,8 +502,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 tvVoltageSag.setVisibility(View.VISIBLE);
                 tvTitleCurrent.setVisibility(View.VISIBLE);
                 tvCurrent.setVisibility(View.VISIBLE);
-                tvTitlePower.setVisibility(View.VISIBLE);
-                tvPower.setVisibility(View.VISIBLE);
+                tvTitlePower.setVisibility(View.GONE);
+                tvPower.setVisibility(View.GONE);
                 tvTitleTemperature.setVisibility(View.VISIBLE);
                 tvTemperature.setVisibility(View.VISIBLE);
                 tvTitleTotalDistance.setVisibility(View.VISIBLE);
@@ -511,6 +514,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 tvLastRestVoltage.setVisibility(View.VISIBLE);
                 tvTimeChargeTitle.setVisibility(View.VISIBLE);
                 tvTimeCharge.setVisibility(View.VISIBLE);
+                tvComfortVoltageCostTitle.setVisibility(View.VISIBLE);
+                tvComfortVoltageCost.setVisibility(View.VISIBLE);
                 break;
             case INMOTION:
                 tvWaitText.setVisibility(View.GONE);
@@ -715,9 +720,11 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         {
             // GUI View
             case 0:
+                wheelView.getAvgLoadPercent(WheelData.getInstance().getAvgLoadPercent());
                 wheelView.setSafeLoadPercent(WheelData.getInstance().getSafeLoadPercent());
                 wheelView.setSpeed(WheelData.getInstance().getSpeed());
-                wheelView.setBattery(WheelData.getInstance().getBatteryLevel());
+                wheelView.setBattery(WheelData.getInstance().getBatteryLevel(), WheelData.getInstance().getLastRestBatteryValue());
+                wheelView.setBatteryCapacity(WheelData.getInstance().mBatteryCapacity);
                 wheelView.setTemperature(WheelData.getInstance().getTemperature());
                 wheelView.setRideTime(WheelData.getInstance().getRidingTimeString());
                 wheelView.setTopSpeed(WheelData.getInstance().getTopSpeedDouble());
@@ -772,6 +779,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 tvLeftKm.setText(WheelData.getInstance().getLeftKm());
                 tvLastRestVoltage.setText(WheelData.getInstance().getLastRestBattery());
                 tvTimeCharge.setText(WheelData.getInstance().getChargeTime());
+                tvComfortVoltageCost.setText(WheelData.getInstance().getComfortVoltageCost());
                 break;
             // Graph  View
             case 2:
@@ -918,6 +926,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         tvSerial = findViewById(R.id.tvSerial);
         tvLeftKm = findViewById(R.id.tvLeftKm);
         tvTimeCharge = findViewById(R.id.tvTimeCharge);
+        tvComfortVoltageCost = findViewById(R.id.tvComfortVoltageCost);
         tvLastRestVoltage = findViewById(R.id.tvLastRestVoltage);
         tvRideTime = findViewById(R.id.tvRideTime);
         tvRidingTime = findViewById(R.id.tvRidingTime);
@@ -1218,9 +1227,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         boolean useStopMusic = sharedPreferences.getBoolean(getString(R.string.use_stop_music), false);
         WheelData.getInstance().setUseStopMusic(useStopMusic);
 
-        int voltageThreshold = sharedPreferences.getInt(getString(R.string.voltage_threshold), 0);
-        WheelData.getInstance().setVoltageThreshold(voltageThreshold);
-        wheelView.setVoltageThreshold(voltageThreshold);
+        int voltageSpeedThreshold = sharedPreferences.getInt(getString(R.string.voltage_speed_threshold), 0);
+        WheelData.getInstance().setVoltageSpeedThreshold(voltageSpeedThreshold);
+        wheelView.setVoltageSpeedThreshold(voltageSpeedThreshold);
 
         boolean currentOnDial = sharedPreferences.getBoolean(getString(R.string.current_on_dial), false);
         wheelView.setCurrentOnDial(currentOnDial);
@@ -1232,8 +1241,28 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             mBluetoothLeService.setConnectionSounds(connectSound, beepPeriod);
         }
 
-        int gotway_voltage = Integer.parseInt(sharedPreferences.getString(getString(R.string.gotway_voltage), "1"));
-        WheelData.getInstance().setGotwayVoltage(gotway_voltage);
+        int gotwayVoltage = Integer.parseInt(sharedPreferences.getString(getString(R.string.gotway_voltage), "1"));
+        WheelData.getInstance().setGotwayVoltage(gotwayVoltage);
+
+        int tiltBackVoltage = sharedPreferences.getInt(getString(R.string.tiltback_voltage), 0);
+        if (tiltBackVoltage == 0 || tiltBackVoltage == 528 || tiltBackVoltage == 660 || tiltBackVoltage == 768 || tiltBackVoltage < 300)
+        {
+            tiltBackVoltage = 528;
+            switch (gotwayVoltage)
+            {
+                case 1:
+                    tiltBackVoltage = 660;
+                    break;
+                case 2:
+                    tiltBackVoltage = 768;
+                    break;
+            }
+
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putInt(getString(R.string.tiltback_voltage), tiltBackVoltage);
+            editor.commit();
+        }
+        WheelData.getInstance().setTiltBackVoltage(tiltBackVoltage);
 
         int gotway_negative = Integer.parseInt(sharedPreferences.getString(getString(R.string.gotway_negative), "-1"));
         WheelData.getInstance().setGotwayNegative(gotway_negative);
@@ -1262,6 +1291,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             int speedCorrection = sharedPreferences.getInt(getString(R.string.speed_correction), 1000);
             int batteryCapacity = sharedPreferences.getInt(getString(R.string.battery_capacity), 0);
             int chargingPower = sharedPreferences.getInt(getString(R.string.charging_power), 0);
+            int startRecommendPwm = sharedPreferences.getInt(getString(R.string.startRecommendPwm), 0);
+            int finishRecommendPwm = sharedPreferences.getInt(getString(R.string.finishRecommendPwm), 0);
 
             WheelData.getInstance().setPreferences(
                     alarm1Speed, alarm1Battery,
@@ -1269,7 +1300,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                     alarm3Speed, alarm3Battery,
                     current_alarm, temperature_alarm, disablePhoneVibrate, disablePhoneBeep, alteredAlarms,
                     rotationSpeed, rotationVoltage, firstPwm, secondPwm, thirdPwm, alarmFactor3,
-                    warningSpeed, speedCorrection, batteryCapacity, chargingPower);
+                    warningSpeed, speedCorrection, batteryCapacity, chargingPower, startRecommendPwm, finishRecommendPwm);
             wheelView.setWarningSpeed(alarm1Speed);
         }
         else

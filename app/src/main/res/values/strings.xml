@@ -62,8 +62,9 @@
     <string name="version">Version</string>
     <string name="serial_number">Serial Number</string>
     <string name="left_km_title">Left mileage (*)</string>
-    <string name="last_rest_voltage_title">Battery Rest</string>
+    <string name="last_rest_voltage_title">Battery Rest (*)</string>
     <string name="time_charge_title">Charge Time (*)</string>
+    <string name="comfort_voltage_cost_title">Effective voltage (*)</string>
     <string name="notification_text" translatable="false">%1$d%% • %2$d°C • %3$.1f km</string>
     <string name="notification_channel_name" translatable="false">Notify</string>
     <string name="notification_channel_description" translatable="false">Default Notify</string>
@@ -114,7 +115,8 @@
     <string name="altered_alarms" translatable="false">altered_alarms</string>
     <string name="rotation_speed" translatable="false">rotation_speed</string>
     <string name="rotation_voltage" translatable="false">rotation_voltage</string>
-    <string name="voltage_threshold" translatable="false">voltage_threshold</string>
+    <string name="voltage_speed_threshold" translatable="false">voltage_speed_threshold</string>
+    <string name="tiltback_voltage" translatable="false">tiltback_voltage</string>
     <string name="first_pwm" translatable="false">first_pwm</string>
     <string name="second_pwm" translatable="false">second_pwm</string>
     <string name="third_pwm" translatable="false">third_pwm</string>
@@ -165,6 +167,8 @@
     <string name="use_stop_music" translatable="false">use_stop_music</string>
     <string name="battery_capacity" translatable="false">battery_capacity</string>
     <string name="charging_power" translatable="false">charging_power</string>
+    <string name="startRecommendPwm" translatable="false">startRecommendPwm</string>
+    <string name="finishRecommendPwm" translatable="false">finishRecommendPwm</string>
 
 
     <string name="max_speed" translatable="false">max_speed</string>
@@ -228,7 +232,7 @@
     <string name="reset_lowest_battery_title">Reset battery sag</string>
     <string name="reset_user_distance_title">Reset user distance</string>
     <string name="edit_mac_addr_title">Edit MAC address</string>
-    <string name="about_app_title">About WheelLog</string>
+    <string name="about_app_title">About Wheellog</string>
     <string name="settings_title">Settings</string>
     <string name="wheel_pass_imotion">Wheel Password ( InMotion only )</string>
     <string name="amp">A</string>
@@ -250,11 +254,11 @@
     <string name="connection_sound_title">Connect sound</string>
     <string name="connection_sound_description">Play sound when Wheel connects or disconnects</string>
     <string name="no_connection_sound_title">Connection lost beeps period</string>
-    <string name="no_connection_sound_description">Period of beeps when connection lost, 0sec - no beeps</string>
-    <string name="speed_correction_title">Speed correction in % (*0.1)</string>
-    <string name="speed_correction_description">Speed correction in % (*0.1)</string>
-    <string name="use_stop_music_title">Music off (experiment)</string>
-    <string name="use_stop_music_description">Auto power off music at speeds below 3.5 km/h</string>
+    <string name="no_connection_sound_description">Period of beeps when connection lost, 0 sec - no beeps</string>
+    <string name="speed_correction_title">Speed correction in %</string>
+    <string name="speed_correction_description">Speed correction (Multiply the value by 10)</string>
+    <string name="use_stop_music_title">Auto mute</string>
+    <string name="use_stop_music_description">Auto mute at speeds below 3.5 km/h</string>
 
     <string name="enable_alarms_title">Enable Alarms</string>
     <string name="enable_alarms_description">Allow the phone to vibrate as a warning</string>
@@ -267,21 +271,23 @@
     <string name="altered_alarms_description">Use altered alarms model based on voltage and capabilities of wheel</string>
     <string name="altered_alarms_pref_title">Altered alarms options</string>
     <string name="rotation_speed_title">Rotation speed</string>
-    <string name="rotation_speed_description">Rotation (lift-up) speed of your wheel</string>
+    <string name="rotation_speed_description">Spin the wheel in the air until it turns off; write max. speed, multiplying it by 10 (If max. speed was 66.5 km/h, then enter 665)</string>
     <string name="rotation_voltage_title">Rotation voltage</string>
-    <string name="rotation_voltage_description">Voltage at which rotation speed was measured</string>
-    <string name="voltage_threshold_title">Voltage threshold</string>
-    <string name="voltage_threshold_description">The voltage required to maintain a comfortable speed in V (* 0.1)</string>
+    <string name="rotation_voltage_description">After setting the spin speed, enter in this field the voltage multiplied by 10 (for example, if the voltage is 79.54V, enter 795)</string>
+    <string name="voltage_speed_threshold_title">Minimum comfortable speed</string>
+    <string name="voltage_speed_threshold_description">Speed that is the minimum comfortable. Works only with GPS on (0 - off)</string>
+    <string name="tiltback_voltage_title">Tilt back voltage</string>
+    <string name="tiltback_voltage_description">Don`t touch if you don`t know the exact value (Multiply the value by 10)</string>
     <string name="first_pwm_title">First alarm PWM</string>
-    <string name="first_pwm_description">Percentage of idle promotion for 1 warning (def. 76)</string>
+    <string name="first_pwm_description">% of idle promotion for the first warning (default is 76). Up to 80 safe, 80-85 risk, 86+ high risk. Does not depend on battery.</string>
     <string name="second_pwm_title">Second alarm PWM</string>
-    <string name="second_pwm_description">Should be higher than first alarm (def. 78)</string>
+    <string name="second_pwm_description">Should be higher than first alarm (by default 78)</string>
     <string name="third_pwm_title">Third alarm PWM</string>
-    <string name="third_pwm_description">Should be higher than second alarm (def. 80)</string>
+    <string name="third_pwm_description">Should be higher than second alarm (by default 80)</string>
     <string name="alarm_factor3_title">qwerty</string>
     <string name="alarm_factor3_description">qwerty</string>
     <string name="warning_speed_title">Advance warning</string>
-    <string name="warning_speed_description">Advance speed warning (0 = off)</string>
+    <string name="warning_speed_description">Advance speed warning (0 - off)</string>
 
     <string name="speed_alarm1_phone_title">Speed Alarm 1</string>
     <string name="speed_trigger_description">Speed that triggers the alarm</string>
@@ -343,10 +349,12 @@
     <string name="ninebotz_settings_title">Wheel settings for Ninebot Z not available yet</string>
     <string name="volt">V</string>
     <string name="watt">W</string>
-
     <string name="battery_capacity_title">Battery capacity</string>
     <string name="battery_capacity_description">Battery Capacity in Wh</string>
     <string name="charging_power_title">Charging power</string>
-    <string name="charging_power_description">Charging Power in A (* 0.1)</string>
-
+    <string name="charging_power_description">Charging Power (Multiply the value by 10)</string>
+    <string name="startRecommendPwm_title">Start recommended % PWM</string>
+    <string name="startRecommendPwm_description">Start recommended % PWM</string>
+    <string name="finishRecommendPwm_title">Finish recommended % PWM</string>
+    <string name="finishRecommendPwm_description">Finish recommended % PWM</string>
 </resources>

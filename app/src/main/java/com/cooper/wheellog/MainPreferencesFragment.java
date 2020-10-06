@@ -1,13 +1,11 @@
 package com.cooper.wheellog;
 
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.Html;
 import android.text.InputType;
-import android.view.View;
 import android.widget.EditText;
 
 import androidx.appcompat.app.AlertDialog;
@@ -122,9 +120,9 @@ public class MainPreferencesFragment extends PreferenceFragmentCompat implements
                 boolean useStopMusic = sharedPreferences.getBoolean(getString(R.string.use_stop_music), false);
                 WheelData.getInstance().setUseStopMusic(useStopMusic);
                 break;
-            case "voltage_threshold":
-                int voltageThreshold = sharedPreferences.getInt(getString(R.string.voltage_threshold), 0);
-                WheelData.getInstance().setVoltageThreshold(voltageThreshold);
+            case "voltage_speed_threshold":
+                int voltageSpeedThreshold = sharedPreferences.getInt(getString(R.string.voltage_speed_threshold), 0);
+                WheelData.getInstance().setVoltageSpeedThreshold(voltageSpeedThreshold);
                 break;
             case "led_enabled":
                 boolean ledEnabled = sharedPreferences.getBoolean(getString(R.string.led_enabled), false);
@@ -444,7 +442,8 @@ public class MainPreferencesFragment extends PreferenceFragmentCompat implements
         }
 
         mWheelType = WheelData.getInstance().getWheelType();
-        if (mWheelType == WHEEL_TYPE.INMOTION || mWheelType == WHEEL_TYPE.KINGSONG || mWheelType == WHEEL_TYPE.GOTWAY || mWheelType == WHEEL_TYPE.NINEBOT_Z)
+        boolean veteran = WheelData.getInstance().isVeteran();
+        if ((mWheelType == WHEEL_TYPE.INMOTION || mWheelType == WHEEL_TYPE.KINGSONG || mWheelType == WHEEL_TYPE.GOTWAY || mWheelType == WHEEL_TYPE.NINEBOT_Z) && !veteran)
         {
             wheelButton.setEnabled(true);
         }

@@ -43,8 +43,8 @@ public class WheelData
     public int mMaxLoadPercent;
     ArrayList<UserLog> mUserLog = new ArrayList<UserLog>();
     double mLeftKm = 0;
-    double mStartBattery = 0;
-    double mStartBatteryDistance = 0;
+    double mStartVoltage = 0;
+    double mStartVoltageDistance = 0;
     int mLastRestBattery = 0;
     double mLastRestVoltage = 0;
     private Timer ridingTimerControl;
@@ -116,11 +116,17 @@ public class WheelData
     private double mThirdPwm = 0.80;
     private double mAlarmFactor3 = 0.90;
     private int mAdvanceWarningSpeed = 0;
+    private double mStartRecommendPwm = 0;
+    private double mFinishRecommendPwm = 0;
     private long mLastPlayWarningSpeedTime = System.currentTimeMillis();
+    private long mLastPlayRecommendSpeedTime = System.currentTimeMillis();
     private double mSpeedCorrectionFactor = 0;
-    private int mBatteryCapacity = 0;
+    public int mBatteryCapacity = 0;
     private double mChargingPowerAmp = 0;
-    private int mVoltageThreshold = 0;
+    private int mVoltageSpeedThreshold = 0;
+    private double mVoltageThreshold = 0;
+    private boolean mIsVoltageSpeedCalculating = false;
+    private double mTiltBackVoltage = 0;
     private boolean mAlteredAlarms = false;
     private boolean mUseRatio = false;
     private boolean m18Lkm = true;
@@ -130,6 +136,7 @@ public class WheelData
     private boolean mCurrentAlarmExecuting = false;
     private boolean mTemperatureAlarmExecuting = false;
     private long mLowSpeedMusicTime = 0;
+    private boolean mVeteran = false;
     private String protoVer = "";
     private int duration = 1;
     private int sampleRate = 44100;
@@ -236,6 +243,22 @@ public class WheelData
     public int getSafeLoadPercent()
     {
         return (int) ((getCorrectedSpeed() / (mRotationSpeed / mRotationVoltage * mVoltage)) * 100);
+    }
+
+    int mAvgSafeLoadPercentRes;
+    int mAvgSafeLoadPercentResCount;
+    public int getAvgLoadPercent()
+    {
+        if (getCorrectedSpeed() > RIDING_SPEED)
+        {
+            mAvgSafeLoadPercentResCount++;
+            mAvgSafeLoadPercentRes += getSafeLoadPercent();
+        }
+
+        if (mAvgSafeLoadPercentResCount <= 0)
+            return 0;
+
+        return mAvgSafeLoadPercentRes / mAvgSafeLoadPercentResCount;
     }
 
     boolean getWheelLight()
@@ -629,6 +652,11 @@ public class WheelData
         return mWheelType;
     }
 
+    boolean isVeteran()
+    {
+        return mVeteran;
+    }
+
     String getName()
     {
         return mName;
@@ -647,29 +675,33 @@ public class WheelData
     String getLeftKm()
     {
         if (mLeftKm <= 0)
-        {
             return "Calculation...";
-        }
 
         return getSpeed() == 0
-                ? String.format(Locale.US, "~ %.2f km", mLeftKm)
-                : String.format(Locale.US, "~ %.2f km (need to stop)", mLeftKm);
+                ? String.format(Locale.US, "~%.2f km", mLeftKm)
+                : String.format(Locale.US, "~%.2f km *", mLeftKm);
     }
 
     String getChargeTime()
     {
         double maxVoltage = 67.2;
-        double minVoltage = 51.2;
+        double minVoltage = mTiltBackVoltage;
         switch (mGotwayVoltageScaler)
         {
             case 1:
                 maxVoltage = 84.0;
-                minVoltage = 64.0;
+                minVoltage = mTiltBackVoltage;
                 break;
             case 2:
                 maxVoltage = 100.8;
-                minVoltage = 76.8;
+                minVoltage = mTiltBackVoltage;
                 break;
+        }
+
+        if (isVeteran())
+        {
+            maxVoltage = 100.8;
+            minVoltage = 75.6;
         }
 
         double whInOneV = mBatteryCapacity / (maxVoltage - minVoltage);
@@ -678,18 +710,35 @@ public class WheelData
         double chargePower = maxVoltage * mChargingPowerAmp;
         int chargeTime = (int) (needToMaxInWh / chargePower * 60);
         return getSpeed() == 0
-                ? String.format(Locale.US, "~ %d min.", chargeTime)
-                : String.format(Locale.US, "~ %d min. (need to stop)", chargeTime);
+                ? String.format(Locale.US, "~%d min", chargeTime)
+                : String.format(Locale.US, "~%d min *", chargeTime);
+    }
+
+    String getComfortVoltageCost()
+    {
+        double comfortVoltageCost = mVoltageThreshold;
+//        if (comfortVoltageCost <= 0 && LoggingService.mLocation == null)
+  //          return "Calculation... (GPS must be on)";
+    //    if (comfortVoltageCost <= 0 && LoggingService.mLocation != null)
+      //      return "Calculation...";
+
+        if (comfortVoltageCost <= 0)
+            return String.format(Locale.US, "~%.2fV (%.2fV, %.2fV) *", comfortVoltageCost, mostMinVoltage, mostPercentStep);
+        else
+            return String.format(Locale.US, "~%.2fV (%.2fV, %.2fV)", comfortVoltageCost, mostMinVoltage, mostPercentStep);
     }
 
     String getLastRestBattery()
     {
         if (mLastRestVoltage <= 0 && mLastRestBattery <= 0)
-        {
             return "Calculation...";
-        }
 
         return String.format(Locale.US, "%d %% (%.2f V)", mLastRestBattery, mLastRestVoltage);
+    }
+
+    int getLastRestBatteryValue()
+    {
+        return mLastRestBattery;
     }
 
     String getAlert()
@@ -771,6 +820,9 @@ public class WheelData
 
     double getPowerDouble()
     {
+        if (mWheelType == WHEEL_TYPE.GOTWAY)
+            return -1;
+
         return (mCurrent * mVoltage) / 10000.0;
     }
 
@@ -903,9 +955,14 @@ public class WheelData
         mUseStopMusic = useStopMusic;
     }
 
-    public void setVoltageThreshold(int voltageThreshold)
+    public void setVoltageSpeedThreshold(int voltageSpeedThreshold)
     {
-        mVoltageThreshold = voltageThreshold;
+        mVoltageSpeedThreshold = voltageSpeedThreshold;
+    }
+
+    public void setTiltBackVoltage(int tiltBackVoltage)
+    {
+        mTiltBackVoltage = tiltBackVoltage / 10.0;
     }
 
     public double getDistanceDouble()
@@ -974,7 +1031,7 @@ public class WheelData
                         boolean disablePhoneVibrate, boolean disablePhoneBeep,
                         boolean alteredAlarms, int rotationSpeed, int rotationVoltage,
                         int firstPwm, int secondPwm, int thirdPwm, int alarmFactor3, int warningSpeed,
-                        int speedCorrection, int batteryCapacity, int chargingPower)
+                        int speedCorrection, int batteryCapacity, int chargingPower, int startRecommendPwm, int finishRecommendPwm)
     {
         mAlarm1Speed = alarm1Speed * 100;
         mAlarm2Speed = alarm2Speed * 100;
@@ -997,6 +1054,8 @@ public class WheelData
         mSpeedCorrectionFactor = (float) speedCorrection / 1000.0;
         mBatteryCapacity = batteryCapacity;
         mChargingPowerAmp = (float) chargingPower / 10.0;
+        mStartRecommendPwm = (float) startRecommendPwm / 100.0;
+        mFinishRecommendPwm = (float) finishRecommendPwm / 100.0;
     }
 
     private int byteArrayInt2(byte low, byte high)
@@ -1092,6 +1151,13 @@ public class WheelData
         mp1.setOnCompletionListener(mp11 -> mp11.release());
     }
 
+    private void playRecommendSpeed(Context mContext)
+    {
+        MediaPlayer mp1 = MediaPlayer.create(mContext, R.raw.exact);
+        mp1.start();
+        mp1.setOnCompletionListener(mp11 -> mp11.release());
+    }
+
     private double getCorrectedSpeed()
     {
         return (float) mSpeed * mSpeedCorrectionFactor;
@@ -1119,7 +1185,16 @@ public class WheelData
                 double maxCurrentSafeSpeedForThirdPwm = maxCurrentNoLoadSpeed * mThirdPwm;
 
                 // Check speed
-                if (getCorrectedSpeed() > maxCurrentSafeSpeedForThirdPwm)
+                if (mStartRecommendPwm != 0 && mFinishRecommendPwm != 0 &&
+                    getCorrectedSpeed() >= (maxCurrentNoLoadSpeed * mStartRecommendPwm) && getCorrectedSpeed() <= (maxCurrentNoLoadSpeed * mFinishRecommendPwm))
+                {
+                    if ((System.currentTimeMillis() - mLastPlayRecommendSpeedTime) > 3000)
+                    {
+                        mLastPlayRecommendSpeedTime = System.currentTimeMillis();
+                        playRecommendSpeed(mContext);
+                    }
+                }
+                else if (getCorrectedSpeed() > maxCurrentSafeSpeedForThirdPwm)
                 {
                     startSpeedAlarmCount();
                     raiseAlarm(ALARM_TYPE.SPEED3, mContext);
@@ -1276,16 +1351,33 @@ public class WheelData
         timestamp_last = timestamp_raw;
         mContext.sendBroadcast(intent);
 
-        if (getSpeed() == 0)
+        double speed = getSpeedDouble();
+        if (speed == 0)
         {
             mLastRestBattery = mBattery;
             mLastRestVoltage = getVoltageDouble();
         }
 
+        if (speed < mVoltageSpeedThreshold)
+            mIsVoltageSpeedCalculating = false;
+
+        // Voltage threshold calculation
+        if (!mIsVoltageSpeedCalculating &&
+             mVoltageSpeedThreshold != 0 &&
+             mLastRestVoltage > 0 &&
+             speed >= mVoltageSpeedThreshold &&
+             (LoggingService.mLocation != null && ((LoggingService.mLocation.getSpeed() * 3.6) * 2) >= mVoltageSpeedThreshold))
+        {
+            mIsVoltageSpeedCalculating = true;
+            double currentVoltageThreshold = mLastRestVoltage - getVoltageDouble();
+            if (mVoltageThreshold == 0 || currentVoltageThreshold < mVoltageThreshold)
+                mVoltageThreshold = currentVoltageThreshold;
+        }
+
         calculateLeftMileage();
         if (mUseStopMusic)
         {
-            if (getSpeedDouble() <= 3.5)
+            if (speed <= 3.5)
             {
                 mLowSpeedMusicTime = 0;
                 MainActivity.audioManager.setStreamMute(AudioManager.STREAM_MUSIC, true);
@@ -1305,6 +1397,8 @@ public class WheelData
         }
     }
 
+    private double mStartBatteryDistance = 0;
+    private double mStartBattery = 0;
     private void calculateLeftMileage()
     {
         if ((getWheelDistance() >= 1000 || getDistance() >= 1000) && getSpeed() == 0 && mStartBattery == 0)
@@ -1326,8 +1420,7 @@ public class WheelData
 
         double possibleCount = mLastRestBattery / usedBattery;
         double currentDistance = getDistanceDouble() - mStartBatteryDistance;
-        double factor = 0.95 - (0.004 * mLastRestBattery);
-        mLeftKm = possibleCount * currentDistance * factor;
+        mLeftKm = possibleCount * currentDistance;
     }
 
     private boolean decodeKingSong(byte[] data)
@@ -1518,6 +1611,7 @@ public class WheelData
 
     private boolean decodeGotway(byte[] data)
     {
+        Timber.i("Decode GOTWAY");
         if (rideStartTime == 0)
         {
             rideStartTime = Calendar.getInstance().getTimeInMillis();
@@ -1526,51 +1620,105 @@ public class WheelData
 
         if (data.length >= 20)
         {
+            Timber.i("Len >=20");
             int a1 = data[0] & 255;
             int a2 = data[1] & 255;
+            int a3 = data[2] & 255;
+            int a4 = data[3] & 255;
             int a5 = data[4] & 255;
             int a6 = data[5] & 255;
             int a19 = data[18] & 255;
-
-            if (a1 != 85 || a2 != 170 || a19 != 0)
+            if ((a1 == 0xDC) && (a2 == 0x5A) && (a3 == 0x5C) && (a4 == 0x20))
             {
-                if (a1 != 90 || a5 != 85 || a6 != 170)
+                // Sherman
+                Timber.i("Decode Sherman");
+                mVeteran = true;
+                mVoltage = (data[4] & 0xFF) << 8 | (data[5] & 0xFF);
+                int speed = ((data[6]) << 8 | (data[7] & 0xFF))*10;
+                if ((speed / 100) > 150 || (speed / 100) < -150)
                 {
                     return false;
                 }
 
-                mTotalDistance = ((data[6] & 0xFF) << 24) | ((data[7] & 0xFF) << 16) | ((data[8] & 0xFF) << 8) | (data[9] & 0xFF);
-                if (mUseRatio) mTotalDistance = Math.round(mTotalDistance * RATIO_GW);
+                mSpeed =  speed;
+                long distance = ((data[10] & 0xFF) << 24 | (data[11] & 0xFF) << 16 | (data[8] & 0xFF) << 8 | (data[9] & 0xFF));
+                setDistance(distance);
+                mTotalDistance = ((data[14] & 0xFF) << 24 | (data[15] & 0xFF) << 16 | (data[12] & 0xFF) << 8 | (data[13] & 0xFF));
+                mCurrent = ((data[16]) << 8 | (data[17] & 0xFF))*10;
+                mTemperature = (data[18] & 0xFF) << 8 | (data[19] & 0xFF);
+                mTemperature2 = mTemperature;
+                setTopSpeed(getCorrectedSpeed());
 
-                return false;
-            }
-
-            if (data[5] >= 0)
-            {
-                if (mGotwayNegative == 0)
+                int battery;
+                if (mBetterPercents)
                 {
-                    int speed = (int) Math.abs(((data[4] * 256.0) + data[5]) * 3.6);
-                    if ((speed / 100) > 150 || (speed / 100) < -150)
-                    {
-                        return false;
-                    }
-
-                    mSpeed = speed;
+                    battery = 0;
+                    double currentVoltage = (double) mVoltage / 100.0;
+                    mostMinVoltage = 75.6 + mVoltageThreshold;
+                    mostPercentStep = (100.8 - mostMinVoltage) / 100;
+                    battery = (int) Math.round((currentVoltage - mostMinVoltage) / mostPercentStep);
                 }
                 else
                 {
-                    int speed = ((int) (((data[4] * 256.0) + data[5]) * 3.6)) * mGotwayNegative;
-                    if ((speed / 100) > 150 || (speed / 100) < -150)
+                    if (mVoltage <= 7935)
+                    {
+                        battery = 0;
+                    }
+                    else if (mVoltage >= 9870)
+                    {
+                        battery = 100;
+                    }
+                    else
+                    {
+                        battery = (int) Math.round((mVoltage - 7935) / 19.5);
+                    }
+                }
+
+                setBatteryPercent(battery);
+                setVoltageSag(mVoltage);
+                int currentTime = (int) (Calendar.getInstance().getTimeInMillis() - rideStartTime) / 1000;
+                setCurrentTime(currentTime);
+                return true;
+            }
+            else
+            {
+                // Gotway
+                if (a1 != 85 || a2 != 170 || a19 != 0)
+                {
+                    if (a1 != 90 || a5 != 85 || a6 != 170)
                     {
                         return false;
                     }
 
-                    mSpeed = speed;
+                    mTotalDistance = ((data[6] & 0xFF) << 24) | ((data[7] & 0xFF) << 16) | ((data[8] & 0xFF) << 8) | (data[9] & 0xFF);
+                    if (mUseRatio) mTotalDistance = Math.round(mTotalDistance * RATIO_GW);
+                    return false;
                 }
-            }
-            else
-            {
-                if (mGotwayNegative == 0)
+
+                if (data[5] >= 0)
+                {
+                    if (mGotwayNegative == 0)
+                    {
+                        int speed = (int) Math.abs(((data[4] * 256.0) + data[5]) * 3.6);
+                        if ((speed / 100) > 150 || (speed / 100) < -150)
+                        {
+                            return false;
+                        }
+
+                        mSpeed = speed;
+                    }
+                    else
+                    {
+                        int speed = ((int) (((data[4] * 256.0) + data[5]) * 3.6)) * mGotwayNegative;
+                        if ((speed / 100) > 150 || (speed / 100) < -150)
+                        {
+                            return false;
+                        }
+
+                        mSpeed = speed;
+                    }
+                }
+                else if (mGotwayNegative == 0)
                 {
                     int speed = (int) Math.abs((((data[4] * 256.0) + 256.0) + data[5]) * 3.6);
                     if ((speed / 100) > 150 || (speed / 100) < -150)
@@ -1590,80 +1738,73 @@ public class WheelData
 
                     mSpeed = speed;
                 }
-            }
 
-            if (mUseRatio) mSpeed = (int) Math.round(getCorrectedSpeed() * RATIO_GW);
-            setTopSpeed(getCorrectedSpeed());
+                if (mUseRatio) mSpeed = (int) Math.round(getCorrectedSpeed() * RATIO_GW);
+                setTopSpeed(getCorrectedSpeed());
 
-            mTemperature = (int) Math.round(((((data[12] * 256) + data[13]) / 340.0) + 35) * 100);
-            mTemperature2 = mTemperature;
+                mTemperature = (int) Math.round(((((data[12] * 256) + data[13]) / 340.0) + 35) * 100);
+                mTemperature2 = mTemperature;
 
-            long distance = byteArrayInt2(data[9], data[8]);
-            if (mUseRatio) distance = Math.round(distance * RATIO_GW);
-            setDistance(distance);
+                long distance = byteArrayInt2(data[9], data[8]);
+                if (mUseRatio) distance = Math.round(distance * RATIO_GW);
+                setDistance(distance);
 
-            mVoltage = (data[2] * 256) + (data[3] & 255);
-            mCurrent = ((data[10] * 256) + data[11]);
-            if (mGotwayNegative == 0)
-            {
-                mCurrent = Math.abs(mCurrent);
-            }
-            else
-            {
-                mCurrent = mCurrent * mGotwayNegative;
-            }
+                mVoltage = (data[2] * 256) + (data[3] & 255);
 
-            int battery;
-            if (mBetterPercents)
-            {
-                battery = 0;
-                double currentVoltage = ((double) mVoltage * (1.0 + (0.25 * (double) mGotwayVoltageScaler))) / 100.0;
-                double minVoltage, percentStep;
+                mCurrent = ((data[10] * 256) + data[11]);
+                if (mGotwayNegative == 0) mCurrent = Math.abs(mCurrent);
+                else mCurrent = mCurrent * mGotwayNegative;
 
-                switch (mGotwayVoltageScaler)
-                {
-                    case 0:
-                        minVoltage = 51.2 + (mVoltageThreshold / 10);
-                        percentStep = (67.0 - minVoltage) / 100;
-                        battery = (int) Math.round((currentVoltage - minVoltage) / percentStep);
-                        break;
-                    case 1:
-                        minVoltage = 64.0 + (mVoltageThreshold / 10);
-                        percentStep = (84.0 - minVoltage) / 100;
-                        battery = (int) Math.round((currentVoltage - minVoltage) / percentStep);
-                        break;
-                    case 2:
-                        minVoltage = 76.8 + (mVoltageThreshold / 10);
-                        percentStep = (100.8 - minVoltage) / 100;
-                        battery = (int) Math.round((currentVoltage - minVoltage) / percentStep);
-                        break;
-                }
-            }
-            else
-            {
-                if (mVoltage <= 5290)
+                int battery;
+                if (mBetterPercents)
                 {
                     battery = 0;
-                }
-                else if (mVoltage >= 6580)
-                {
-                    battery = 100;
+                    double currentVoltage = ((double) mVoltage * (1.0 + (0.25 * (double) mGotwayVoltageScaler))) / 100.0;
+                    switch (mGotwayVoltageScaler)
+                    {
+                        case 0:
+                            mostMinVoltage = mTiltBackVoltage + mVoltageThreshold;
+                            mostPercentStep = (67.2 - mostMinVoltage) / 100;
+                            battery = (int) Math.round((currentVoltage - mostMinVoltage) / mostPercentStep);
+                            break;
+                        case 1:
+                            mostMinVoltage = mTiltBackVoltage + mVoltageThreshold;
+                            mostPercentStep = (84.0 - mostMinVoltage) / 100;
+                            battery = (int) Math.round((currentVoltage - mostMinVoltage) / mostPercentStep);
+                            break;
+                        case 2:
+                            mostMinVoltage = mTiltBackVoltage + mVoltageThreshold;
+                            mostPercentStep = (100.8 - mostMinVoltage) / 100;
+                            battery = (int) Math.round((currentVoltage - mostMinVoltage) / mostPercentStep);
+                            break;
+                    }
                 }
                 else
                 {
-                    battery = (mVoltage - 5290) / 13;
+                    if (mVoltage <= 5290)
+                    {
+                        battery = 0;
+                    }
+                    else if (mVoltage >= 6580)
+                    {
+                        battery = 100;
+                    }
+                    else
+                    {
+                        battery = (mVoltage - 5290) / 13;
+                    }
                 }
-            }
 
-            setBatteryPercent(battery);
-            mVoltage = (int) Math.round(mVoltage * (1 + (0.25 * mGotwayVoltageScaler)));
-            setVoltageSag(mVoltage);
-            int currentTime = (int) (Calendar.getInstance().getTimeInMillis() - rideStartTime) / 1000;
-            setCurrentTime(currentTime);
+                setBatteryPercent(battery);
+                mVoltage = (int)Math.round(mVoltage * (1 + (0.25 * mGotwayVoltageScaler)));
+                setVoltageSag(mVoltage);
+                int currentTime = (int) (Calendar.getInstance().getTimeInMillis() - rideStartTime) / 1000;
+                setCurrentTime(currentTime);
+            }
 
             return true;
         }
-        else if (data.length >= 10)
+        else if (data.length >= 10 && !mVeteran)
         {
             int a1 = data[0];
             int a5 = data[4] & 255;
@@ -1673,13 +1814,14 @@ public class WheelData
                 return false;
             }
 
-            mTotalDistance = ((data[6] & 0xFF) << 24) | ((data[7] & 0xFF) << 16) | ((data[8] & 0xFF) << 8) | (data[9] & 0xFF);
+            mTotalDistance = ((data[6]&0xFF) <<24) | ((data[7]&0xFF) << 16) | ((data[8] & 0xFF) <<8) | (data[9] & 0xFF);
             if (mUseRatio) mTotalDistance = Math.round(mTotalDistance * RATIO_GW);
         }
 
         return false;
     }
 
+    double mostMinVoltage, mostPercentStep;
     private boolean decodeNinebotZ(byte[] data)
     {
         ArrayList<NinebotZAdapter.Status> statuses = NinebotZAdapter.getInstance().charUpdated(data);
@@ -1861,12 +2003,18 @@ public class WheelData
 
     void reset()
     {
+        mAvgSafeLoadPercentRes = 0;
+        mAvgSafeLoadPercentResCount = 0;
         mLowSpeedMusicTime = 0;
         mLastRestBattery = 0;
         mLastRestVoltage = 0;
-        mStartBattery = 0;
-        mStartBatteryDistance = 0;
+        mStartVoltage = 0;
+        mStartVoltageDistance = 0;
+        mVoltageSpeedThreshold = 0;
         mVoltageThreshold = 0;
+        mostMinVoltage = 0;
+        mostPercentStep = 0;
+        mIsVoltageSpeedCalculating = false;
         mUserLog.clear();
         mLeftKm = 0;
         mMaxLoadPercent = 0;
